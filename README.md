@@ -1,8 +1,8 @@
 # z80-assi
 Easy emulation, assembling and programming of Z80 processor code using minipro
 
-The program is a little helper to easify the programming of a Z80 processor using a MiniPro TL866 EEPROM programmer and available assembling and emulation software.
-Interactive chip selection is possible.
+The program is a little helper to easify the programming of a Z80 processor using a MiniPro TL866 EEPROM programmer 
+and available assembling and emulation software. Furthermore, interactive chip selection is possible.
 
 FILES
 z80-assideu: German version
@@ -51,15 +51,4 @@ For example the 27C512's have a size of 65536 bytes (=64KB)  So You can run
   
 which will create a file bin/test.rom.bin. The rest is self-explanive, I think. 
 
-
-  
-  
- 
- 
- 
-
-  
-  
-	
-
-
+HAVE FUN!
