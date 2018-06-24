@@ -123,109 +123,8 @@ function Help(){
 	echo -e	  "Kompiliert die Datei und erstellt ein ROM-Image von 65536 (0xFFFF) Bytes Größe. \nDie Binärdaten starten ab Adresse 0x8000, davor und danach wird mit 0xFF gefüllt.\n"
 }
 
-#Variablen initialisieren
-
-ONAME=0
-CHIP=0
-CHIPSIZE="65536"
-MINIPRONAME="minipro"
-ASSEMBLER="z80asm"
-EMULATOR="z80-mon"
-FILLCHAR='\xFF'
-TERMINAL="gnome-terminal"
-EMUL=0
-GUI=0
-HILFE=0
-LIST=0
-OPEN=0
-PROG=0
-VERI=0
-SIZE=0
-USESIZE=0
-YES=0
-OFFSET=0
-INSTALL=0
-UNAME=$(echo ~ | cut -d/ -f3)
-INSTPATH=temp
-VERZ=0
-
-
-#POSIX Help
-if [[ $@ = *"--help"* ]]; then HILFE=1; fi
-
-
-#QUELLDATEI 
-#Keine Argumente
-if [ "$#" == "0" ]; then
-			echo_red "Keine Quelldatei angegeben.\nAbbruch.\n$0 -h, aufrufen, um die Hilfedatei anzuzeigen.\n"
-			Usage
-			exit 1
-			fi
-
-ARG1=$1
-ARGB=$(echo ${ARG1} | cut -c1)
-
-if ! [ "$ARGB" ==  "-" ]; then # kein '-'-> Quelldatei
-		QUELLE=$ARG1
-		shift
-	elif [ "$ARG1" == "-h" ] || [ "$ARG1" == "--help" ]; then
-		Help	
-		exit 0
-	elif ! [ "$ARG1" == "-I" ] ; then
-			echo $ARG1
-			echo_red "Keine Quelldatei angegeben.\nAbbruch.\n$0 -h, aufrufen, um die Hilfedatei anzuzeigen.\n"
-			Usage
-			exit 1
-			fi
-
-#QUELLDATEI	AUF VORHANDENSEIN PRÜFEN
-	echo -ne "\\033[34;1m\n\nQuelldatei:\t\t\033[0m${QUELLE}"
-	if [[ -e  ${QUELLE} ]]; then 
-		echo_green " OK"
-	else
-		echo_red " FEHLER\nDatei ${QUELLE} nicht gefunden. \nAbbruch.\n"
-		exit 1
-	fi	# Existiert Quelldatei
-
-#Argumente auswerten
-while getopts "ac:d:ehIln:o:Ops:vy" OPTION; do
-	case "${OPTION}" in
-		a) PROG=1; EMUL=1; USESIZE=1;;
-		d) VERZ=$OPTARG;;
-		c) CHIP=$OPTARG; LIST=0; USESIZE=1;;
-		e) EMUL=1;;
-		h) HILFE=1;;
-		I) INSTALL=1;;
-		l) LIST=1;;
-		n) OFFSET=$OPTARG;; 
-		o) ONAME=$OPTARG;;
-		O) OPEN=1;;
-		p) PROG=1; USESIZE=1;;
-		s) SIZE=$OPTARG; USESIZE=1;;
-		v) VERI=1; YES=1;;	
-		y) YES=1;;
-		'?') HILFE=1;;
-		esac
-done
-
-
-
-# HEADER
-clear
-echo_red "Z80-Assistent" 
-echo -en "v 0.2a\n"
-
-# HILFE
-if [[ $HILFE -eq 1 ]]
-	then
-		Help
-		exit 0
-		fi #Hilfe
-
-
-# INSTALL PREREQUISITS
-if [[ $INSTALL -eq 1 ]]; then
-SUCC=0
+function Install(){
+	SUCC=0
 ERR=0
 NOT=0
 IMON=0
@@ -239,20 +138,15 @@ IMINI=0
 	INSTPATH="${INSTPATH}/"
 	fi
 	
-	
-	mkdir -p ${INSTPATH}
-	cp "$(dirname $(readlink -e $0))/${0##*/}" "/usr/local/bin/z80-assi"
-	chmod +x "/usr/local/bin/z80-assi"
-	
-	echo_blue "\nInstallation erforderlicher Programme\n\n"
 	#SUDO?
 	if [ ! `id -u` = 0 ]; then 
 	echo_red "Programm zur Installation anderer Programme bitte mit Root-Rechten aufrufen. (sudo ${0##*/})";
 	exit 1
 	else	
+		echo_blue "\nZ80-Assistent Installation\n\n"
 	
     #PRÜFSCHLEIFE
-    echo_blue "Prüfe erforderliche Programme\n"
+		echo_blue "Prüfe erforderliche Programme\n"
     
 			echo -n "Z80-Assembler (z80asm von Bas Wijnen)"
 			teste=$(z80asm -h 2>&1 | head -n1)
@@ -352,34 +246,138 @@ IMINI=0
 			
 			chown -R ${UNAME} .
 			chmod -R 777 .		
-			echo_green "\nInstallation erfolgreich abgeschlossen. $NOT Programme nicht installiert.\n"
-			exit 0  
+			
     
 			if [[ $ERR -gt 0 ]] ; then 
-			echo_red  "$ERR Fehler bei der Installation\n"
-			exit 1
+					echo_red  "$ERR Fehler bei der Installation\n"
+					exit 1
+			else 
+					echo_green "\nInstallation erfolgreich abgeschlossen. $NOT Programme nicht installiert.\n"
 			fi
 			
 		
 
  else #INST-SCHLEIFE 
-    echo_green "\nAlle Programme bereits installiert. Beende.\n"
+    echo_green "\nAlle Programme bereits installiert. Beende die Installation von Dienstprogrammen.\n"
 
     fi 
-    
+				echo_blue "Kopiere ausführbare Datei nach /usr/local/bin/ "
+				mkdir -p ${INSTPATH}
+				cp "$(dirname $(readlink -e $0))/${0##*/}" "/usr/local/bin/z80-assi"
+				chmod +x "/usr/local/bin/z80-assi"
+				if [[ -x "/usr/local/bin/z80-assi" ]]; then
+						echo_green "OK\n"
+					else
+						echo_red "FEHLER: Datei nicht gefunden oder nicht ausführbar.\n"
+					fi
  
    			echo_blue "Räume auf..."
 			rm -rf "${INSTPATH}/"
 			echo_green " OK\n"
 			    exit 0
     
-fi #SUDO
+fi #SUDO	
+}
 
-    
-fi #INSTALL
+#Variablen initialisieren
+
+ONAME=0
+CHIP=0
+CHIPSIZE="65536"
+MINIPRONAME="minipro"
+ASSEMBLER="z80asm"
+EMULATOR="z80-mon"
+FILLCHAR='\xFF'
+TERMINAL="gnome-terminal"
+EMUL=0
+GUI=0
+HILFE=0
+LIST=0
+OPEN=0
+PROG=0
+VERI=0
+SIZE=0
+USESIZE=0
+YES=0
+OFFSET=0
+UNAME=$(echo ~ | cut -d/ -f3)
+INSTPATH=temp
+VERZ=0
 
 
-	 
+# HEADER
+clear
+echo_red "Z80-Assistent" 
+echo -en "v 0.2c\n"
+
+
+#POSIX Help
+if [[ $@ = *"--help"* ]]; then HILFE=1; fi
+
+
+#QUELLDATEI 
+#Keine Argumente
+if [ "$#" == "0" ]; then
+			echo_red "Keine Quelldatei angegeben.\nAbbruch.\n$0 -h, aufrufen, um die Hilfedatei anzuzeigen.\n"
+			Usage
+			exit 1
+			fi
+
+ARG1=$1
+ARGB=$(echo ${ARG1} | cut -c1)
+
+if ! [ "$ARGB" ==  "-" ]; then # kein '-'-> Quelldatei
+		QUELLE=$ARG1
+		shift
+	elif [ "$ARG1" == "-h" ] || [ "$ARG1" == "--help" ]; then
+		Help	
+		exit 0
+	elif [ "$ARG1" == "-I" ] ; then
+		Install
+		exit 0
+	else
+		echo_red "Keine Quelldatei angegeben.\nAbbruch.\n$0 -h, aufrufen, um die Hilfedatei anzuzeigen.\n"
+		Usage
+		exit 1
+	fi
+
+#QUELLDATEI	AUF VORHANDENSEIN PRÜFEN
+	echo -ne "\\033[34;1m\n\nQuelldatei:\t\t\033[0m${QUELLE}"
+	if [[ -e  ${QUELLE} ]]; then 
+		echo_green " OK"
+	else
+		echo_red " FEHLER\nDatei ${QUELLE} nicht gefunden. \nAbbruch.\n"
+		exit 1
+	fi	# Existiert Quelldatei
+
+#Argumente auswerten
+while getopts "ac:d:ehln:o:Ops:vy" OPTION; do
+	case "${OPTION}" in
+		a) PROG=1; EMUL=1; USESIZE=1;;
+		d) VERZ=$OPTARG;;
+		c) CHIP=$OPTARG; LIST=0; USESIZE=1;;
+		e) EMUL=1;;
+		h) HILFE=1;;
+		l) LIST=1;;
+		n) OFFSET=$OPTARG;; 
+		o) ONAME=$OPTARG;;
+		O) OPEN=1;;
+		p) PROG=1; USESIZE=1;;
+		s) SIZE=$OPTARG; USESIZE=1;;
+		v) VERI=1; YES=1;;	
+		y) YES=1;;
+		'?') HILFE=1;;
+		esac
+done
+
+
+# HILFE
+if [[ $HILFE -eq 1 ]]
+	then
+		Help
+		exit 0
+		fi #Hilfe
+
 #Ausgabeverzeichnis
 	##Verzeichnis prüfen
 	

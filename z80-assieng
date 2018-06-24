@@ -124,111 +124,13 @@ function Help(){
 	echo -e	  "Assembles the file Code.asm and creates an ROM image of 65536 (0xFFFF) Bytes. \nThe machine code starts at adress 0x8000. the rest is filled with 0xFF.\n"
 	}
 
-#Initialize Variables
-
-ONAME=0
-CHIP=0
-CHIPSIZE="65536"
-MINIPRONAME="minipro"
-ASSEMBLER="z80asm"
-EMULATOR="z80-mon"
-TERMINAL="gnome-terminal"
-FILLCHAR='\xFF'
-EMUL=0
-GUI=0
-HILFE=0
-LIST=0
-OPEN=0
-PROG=0
-VERI=0
-SIZE=0
-USESIZE=0
-YES=0
-OFFSET=0
-INSTALL=0
-UNAME=$(echo ~ | cut -d/ -f3)
-INSTPATH=temp
-VERZ=0
-
-# Header
-clear
-echo_red "Z80-Assistent" 
-echo -en "v 0.2b\n"
-
-#POSIX Help
-if [[ $@ = *"--help"* ]]; then HILFE=1; fi
-
-#Get the source file
-#No args supplied
-if [ "$#" == "0" ]; then
-			echo_red "No source file specified.\nCancelling.\nCall n$0 -h, to show full help file."
-			Usage
-			exit 1
-			fi
-
-ARG1=$1
-ARGB=$(echo ${ARG1} | cut -c1)
-
-if ! [ "$ARGB" ==  "-" ]; then # no leading '-' -> it's the source file
-		QUELLE=$ARG1
-		shift
-	elif [ "$ARG1" == "-h" ] || [ "$ARG1" == "--help" ]; then
-		Help	
-		exit 0
-	elif ! [ "$ARG1" == "-I" ] ; then
-			echo $ARG1
-			echo_red "\nSource file not specified.\nCancelling.n\Call n$0 -h, to show help file.\n"
-			Usage
-			exit 1
-			fi
-			
-#Does the source file exist
-	echo -ne "\\033[34;1m\nSource File:\t\t\033[0m${QUELLE}"
-	if [[ -e  ${QUELLE} ]]; then 
-		echo_green " OK"
-	else
-		echo_red " ERROR\nFile ${QUELLE} not found. \nCancelling.\n"
-		exit 1
-	fi	# source file exist
-	
-
-#Interpret the options and arguments
-while getopts "ac:d:ehIln:o:Ops:vy" OPTION; do
-	case "${OPTION}" in
-		a) PROG=1; EMUL=1; USESIZE=1;;
-		d) VERZ=$OPTARG;;
-		c) CHIP=$OPTARG; LIST=0; USESIZE=1;;
-		e) EMUL=1;;
-		h) HELP; Exit 0;;
-		I) INSTALL=1;;
-		l) LIST=1;;
-		n) OFFSET=$OPTARG;; 
-		o) ONAME=$OPTARG;;
-		O) OPEN=1;;
-		p) PROG=1; USESIZE=1;;
-		s) SIZE=$OPTARG; USESIZE=1;;
-		v) VERI=1; YES=1;;	
-		y) YES=1;;
-		'?') HILFE=1;;
-		esac
-done
-
-# Help
-if [[ $HILFE -eq 1 ]]
-	then
-		Help
-		exit 0
-		fi #Help
-
-
-# INSTALL PREREQUISITS
-if [[ $INSTALL -eq 1 ]]; then
-SUCC=0
-ERR=0
-NOT=0
-IMON=0
-IASM=0
-IMINI=0
+function Install(){
+	SUCC=0
+	ERR=0
+	NOT=0
+	IMON=0
+	IASM=0
+	IMINI=0
 
 	##Check directory
 	var=$(echo ${INSTPATH} | cut -c1)
@@ -237,20 +139,15 @@ IMINI=0
 	INSTPATH="${INSTPATH}/"
 	fi
 	
-	
-	mkdir -p ${INSTPATH}
-	cp "$(dirname $(readlink -e $0))/${0##*/}" "/usr/local/bin/z80-assi"
-	chmod +x "/usr/local/bin/z80-assi"
-	
-	echo_blue "\nInstalling required programs\n\n"
 	#SUDO?
 	if [ ! `id -u` = 0 ]; then 
 	echo_red "Please call this script with root acess for installation. (sudo ${0##*/})";
 	exit 1
 	else	
+	echo_blue "\nZ80-Assistent installation\n"
 	
-    #PRÜFSCHLEIFE
-    echo_blue "Checking for required programs\n"
+    #CHECK Routine
+    echo_blue "\nChecking for required programs\n"
     
 			echo -n "Z80 assembler (z80asm by Bas Wijnen)"
 			teste=$(z80asm -h 2>&1 | head -n1)
@@ -273,7 +170,7 @@ IMINI=0
 					
 	
 			
-			#INSTALLATIONSSCHLEIFE
+			#INSTALLATION Routine
 			if [[ IMINI -eq 1 ]] || [[ IMON -eq 1 ]] || [[ IASM -eq 1 ]] ; then 
 			
 						echo -e "\nInstallation path: ${INSTPATH}"
@@ -347,35 +244,140 @@ IMINI=0
 							fi
 							cd "${INSTPATH}/"
 						fi
+						
 			
 			chown -R ${UNAME} .
 			chmod -R 777 .		
-			echo_green "\nInstallation successfull. $NOT programs not installed.\n"
-			exit 0  
+			
     
 			if [[ $ERR -gt 0 ]] ; then 
-			echo_red  "$ERR Errors on installation. Try to install them manually.\n"
-			exit 1
+				echo_red  "$ERR Errors on installation. \n"
+				exit 1
+			else 
+				echo_green "\nInstallation successfull. $NOT programs not installed.\n"
 			fi
 			
 		
 
  else #INST-SCHLEIFE 
-    echo_green "\nAll service programs allready installed. Cancelling.\n"
+    echo_green "\nAll service programs allready installed. Cancelling service program installation.\n"
 
     fi 
+    
+				echo_blue "Copying executable file to /usr/local/bin/ "
+				mkdir -p ${INSTPATH}
+				cp "$(dirname $(readlink -e $0))/${0##*/}" "/usr/local/bin/z80-assi"
+				chmod +x "/usr/local/bin/z80-assi"
+				if [[ -x "/usr/local/bin/z80-assi" ]]; then
+						echo_green "OK\n"
+					else
+						echo_red "ERROR: File not found or not executable.\n"
+					fi
+    
     		echo_blue "Cleaning up..."
 			rm -rf "${INSTPATH}/"
 			echo_green " OK\n"
 			    exit 0
     
 fi #SUDO
+}
 
-    
-fi #INSTALL
+#Initialize Variables
 
+ONAME=0
+CHIP=0
+CHIPSIZE="65536"
+MINIPRONAME="minipro"
+ASSEMBLER="z80asm"
+EMULATOR="z80-mon"
+TERMINAL="gnome-terminal"
+FILLCHAR='\xFF'
+EMUL=0
+GUI=0
+HILFE=0
+LIST=0
+OPEN=0
+PROG=0
+VERI=0
+SIZE=0
+USESIZE=0
+YES=0
+OFFSET=0
+UNAME=$(echo ~ | cut -d/ -f3)
+INSTPATH=temp
+VERZ=0
 
-	 
+# Header
+clear
+echo_red "Z80-Assistent" 
+echo -en "v 0.2c\n"
+
+#POSIX Help
+if [[ $@ = *"--help"* ]]; then HILFE=1; fi
+
+#Get the source file
+#No args supplied
+if [ "$#" == "0" ]; then
+			echo_red "No source file specified.\nCancelling.\nCall n$0 -h, to show full help file."
+			Usage
+			exit 1
+			fi
+
+ARG1=$1
+ARGB=$(echo ${ARG1} | cut -c1)
+
+if ! [ "$ARGB" ==  "-" ]; then # no leading '-' -> it's the source file
+		QUELLE=$ARG1
+		shift
+	elif [ "$ARG1" == "-h" ] || [ "$ARG1" == "--help" ]; then
+		Help	
+		exit 0
+	elif [ "$ARG1" == "-I" ] ; then
+		Install
+		exit 0
+	else
+		echo_red "\nSource file not specified.\nCancelling.n\Call n$0 -h, to show help file.\n"
+		Usage
+		exit 1
+	fi	
+			
+#Does the source file exist
+	echo -ne "\\033[34;1m\nSource File:\t\t\033[0m${QUELLE}"
+	if [[ -e  ${QUELLE} ]]; then 
+		echo_green " OK"
+	else
+		echo_red " ERROR\nFile ${QUELLE} not found. \nCancelling.\n"
+		exit 1
+	fi	# source file exist
+	
+
+#Interpret the options and arguments
+while getopts "ac:d:ehln:o:Ops:vy" OPTION; do
+	case "${OPTION}" in
+		a) PROG=1; EMUL=1; USESIZE=1;;
+		d) VERZ=$OPTARG;;
+		c) CHIP=$OPTARG; LIST=0; USESIZE=1;;
+		e) EMUL=1;;
+		h) HELP; Exit 0;;
+		l) LIST=1;;
+		n) OFFSET=$OPTARG;; 
+		o) ONAME=$OPTARG;;
+		O) OPEN=1;;
+		p) PROG=1; USESIZE=1;;
+		s) SIZE=$OPTARG; USESIZE=1;;
+		v) VERI=1; YES=1;;	
+		y) YES=1;;
+		'?') HILFE=1;;
+		esac
+done
+
+# Help
+if [[ $HILFE -eq 1 ]]
+	then
+		Help
+		exit 0
+		fi #Help
+
 # Output directory
 	##Check directory
 	
