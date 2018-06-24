@@ -9,26 +9,31 @@ and available assembling and emulation software. Furthermore, interactive chip s
 * z80-assieng: English version
 
 ## USAGE
-z80-assi SOURCEFILE [OPTIONS: { -l -c[chip name] -s[Image Size] (-n [Offset) }  { -o[Output Name] }  { -a -e -p }  { -O }  { -h }  { -y }]
+    z80-assi SOURCEFILE [OPTIONS: { -l -c[chip name] -s[Image Size] (-n [Offset) }  { -o[Output Name] }  { -a -e -p }  { -O }  { -h }  { -y }]
 
 ## INSTALLATION
 To globally install the script, download the appropiate language version and run "bash z80-assideu -I" or "z80-assieng -I".
 The script will install itself and the three needed services (z80asm by Bas Wijnen, z80-mon by Brainsoft and minipro by Valentin Dudouyt) to /usr/local/bin.
 Afterwards it can be run with z80-assi -h to get further information. 
 
-## BUGS:  Tell me, if You find some! ;)
+## BUGS: 
+Tell me, if You find some! ;)
 
 ## HOW TO GET STARTED?
 Create an empty file using Your favorite editor, name it however You want. Just for example purpose,
 it could be something like this (which... in fact does nothing):
 
-ORG 	$0000
-        DI			          ; Disable Interrupts while Startup	
-	      LD 	SP, 	$FF00	  ; Intialize stackPointer
-	      IM	2		          ; Set Interrupt Mode 2
+***ORG 	$0000***   
 
-MAIN:   NOP           ; write Your code here
-        JP MAIN
+		***DI*** ; Disable Interrupts while Startup  	
+
+		***LD 	SP,$FF00***; Intialize stackPointer  
+
+		***IM	2***; Set Interrupt Mode 2  
+
+***MAIN:           NOP***           *; write Your code here*
+
+		***JP MAIN***
 
 and save it, e.g. as "test.asm". Open a terminal in the containing directory and type 
 ```nohighlight
