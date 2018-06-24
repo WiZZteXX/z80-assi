@@ -1,8 +1,15 @@
-# z80-assi
-Easy emulation, assembling and programming of Z80 processor code using minipro
+# Z80 Assistent
+All-In-One Emulation, Assembling and Programming of Z80 processor code using minipro
 
-The program is a little helper to easify the programming of a Z80 processor using a MiniPro TL866 EEPROM programmer 
-and available assembling and emulation software. Furthermore, interactive chip selection is possible.
+## FEATURES
+* All-In-One z-80 development program for assembly, emulation, chip programming
+* All Programming steps can be accomplished with only one shell command
+* Compatible with the MiniPro TL866xx series programmers using controlling software by Valentin Dudouyt (https://github.com/vdudouyt/minipro)
+* Interactive chip selection
+* Ability to created ROM-Images with user-provided size and code offset
+* Automatic size detection upon specified chips
+* Globally executable
+
 
 ## FILES
 * z80-assideu: German version
@@ -13,29 +20,29 @@ and available assembling and emulation software. Furthermore, interactive chip s
 
 ## INSTALLATION
 To globally install the script, download the appropiate language version and run "bash z80-assideu -I" or "z80-assieng -I".
-The script will install itself and the three needed services (z80asm by Bas Wijnen, z80-mon by Brainsoft and minipro by Valentin Dudouyt) to /usr/local/bin.
-Afterwards it can be run with z80-assi -h to get further information. 
+The script will install itself and the three needed services (z80asm by Bas Wijnen, z80-mon by Brainsoft and minipro by Valentin Dudouyt) to **/usr/local/bin**.     
+Afterwards it can be run with ***z80-assi -h*** to get further information. 
 
 ## BUGS: 
 Tell me, if You find some! ;)
 
 ## HOW TO GET STARTED?
-Create an empty file using Your favorite editor, name it however You want. Just for example purpose,
-it could be something like this (which... in fact does nothing):
+Create an empty file using Your favorite editor, name it however You want.       
+Just for example purpose, it could be something like this (which... in fact does nothing):
 
 ***ORG 	$0000***   
 
-  ***DI*** ; Disable Interrupts while Startup  	
+***DI*** ; Disable Interrupts while Startup   
 
-  ***LD  SP,$FF00***; Intialize stackPointer  
+***LD  SP,$FF00***; Intialize stackPointer  
 
-  ***IM	 2***; Set Interrupt Mode 2  
+***IM	 2***; Set Interrupt Mode 2  
 
 ***MAIN: NOP***           *; write Your code here*
 
-  ***JP MAIN***
+***JP MAIN***
 
-and save it, e.g. as "test.asm". Open a terminal in the containing directory and type 
+and save it, e.g. as *test.asm*. Open a terminal in the containing directory and type 
 ```nohighlight
   z80-assi test.asm -e (will only emulate the code, no programmer needed)
 ```
@@ -54,6 +61,6 @@ For example the 27C512's have a size of 65536 bytes (=64KB)  So You can run
 ```nohighlight  
   z80-assi test.asm -s64K
 ``` 
-which will create a file bin/test.rom.bin. The rest is self-explanive, I think. 
+which will create a local file **bin/test.rom.bin**. The rest is self-explanive, I think. 
 
 ### HAVE FUN!
