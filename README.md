@@ -25,15 +25,15 @@ it could be something like this (which... in fact does nothing):
 
 ***ORG 	$0000***   
 
-		***DI*** ; Disable Interrupts while Startup  	
+  ***DI*** ; Disable Interrupts while Startup  	
 
-		***LD 	SP,$FF00***; Intialize stackPointer  
+  ***LD  SP,$FF00***; Intialize stackPointer  
 
-		***IM	2***; Set Interrupt Mode 2  
+  ***IM	 2***; Set Interrupt Mode 2  
 
-***MAIN:           NOP***           *; write Your code here*
+***MAIN: NOP***           *; write Your code here*
 
-		***JP MAIN***
+  ***JP MAIN***
 
 and save it, e.g. as "test.asm". Open a terminal in the containing directory and type 
 ```nohighlight
