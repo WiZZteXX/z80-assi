@@ -10,6 +10,14 @@ All-In-One Emulation, Assembling and Programming of Z80 processor code using min
 * Automatic size detection upon specified chips
 * Globally executable
 
+## PREREQUISITS
+* If chip programming is needed, you will need a MiniPro TL866xx Programmer (http://www.autoelectric.cn/en/tl866_main.html)
+
+(The following be installed automatically upon calling *z80-assi[deu/eng] -I*)
+* Minipro controlling software (https://github.com/vdudouyt/minipro) --> needed for chip programming
+* Emulation z80-mon from z80-asm package (http://wwwhomes.uni-bielefeld.de/achim/z80-asm/) --> needed for emulation
+* z80asm (https://galera.ii.pw.edu.pl/sml3/PDF/Z80ASM.pdf) --> needed for code assembling
+
 
 ## FILES
 * z80-assideu: German version
