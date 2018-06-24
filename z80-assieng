@@ -132,6 +132,7 @@ CHIPSIZE="65536"
 MINIPRONAME="minipro"
 ASSEMBLER="z80asm"
 EMULATOR="z80-mon"
+TERMINAL="gnome-terminal"
 FILLCHAR='\xFF'
 EMUL=0
 GUI=0
@@ -631,8 +632,9 @@ if [[ $EMUL -eq 1 ]] ; then
 	echo 
 	echo_blue "Emulating the file"
 	echo_green " OK"
-	sleep 200
-	z80-mon ${emuname}
+	echo_in "Start emulation? Press Enter to continue or Ctrl+C to cancel"
+	read
+	${TERMINAL} -e "z80-mon ${emuname}"
 	fi
 
 

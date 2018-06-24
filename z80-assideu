@@ -132,6 +132,7 @@ MINIPRONAME="minipro"
 ASSEMBLER="z80asm"
 EMULATOR="z80-mon"
 FILLCHAR='\xFF'
+TERMINAL="gnome-terminal"
 EMUL=0
 GUI=0
 HILFE=0
@@ -636,8 +637,9 @@ if [[ $EMUL -eq 1 ]] ; then
 	echo 
 	echo_blue "Emuliere die Datei"
 	echo_green " OK"
-	sleep 200
-	z80-mon ${emuname}
+	echo_in "Emulation in neuem Terminal starten? Eingabetaste drücken, um fortzufahren oder Strg+C um abzubrechen"
+	read
+	${TERMINAL} -e "z80-mon ${emuname}"
 	fi
 
 
