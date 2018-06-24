@@ -13,7 +13,7 @@ All-In-One Emulation, Assembling and Programming of Z80 processor code using min
 ## PREREQUISITS
 * If chip programming is needed, you will need a MiniPro TL866xx Programmer (http://www.autoelectric.cn/en/tl866_main.html)
 
-***The following be installed automatically upon calling *z80-assi[deu/eng] -I***
+***The following be installed automatically upon calling *z80-assi[deu/eng] -I****
 * Minipro controlling software (https://github.com/vdudouyt/minipro) --> needed for chip programming
 * Emulation z80-mon from z80-asm package (http://wwwhomes.uni-bielefeld.de/achim/z80-asm/) --> needed for emulation
 * z80asm (https://galera.ii.pw.edu.pl/sml3/PDF/Z80ASM.pdf) --> needed for code assembling
@@ -31,7 +31,7 @@ To globally install the script, download the appropiate language version and run
 The script will install itself and the three needed services (z80asm by Bas Wijnen, z80-mon by Brainsoft and minipro by Valentin Dudouyt) to **/usr/local/bin**.     
 Afterwards it can be run with ***z80-assi -h*** to get further information. 
 
-## BUGS: 
+## BUGS
 Tell me, if You find some! ;)
 
 ## HOW TO GET STARTED?
