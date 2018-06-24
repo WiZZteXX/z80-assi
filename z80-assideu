@@ -80,6 +80,48 @@ function ChipSize_man () {
 			fi
 	return 0
 	}
+	
+function Usage(){
+	echo_blue "BENUTZUNG:\n${0##*/} [Quelldatei] [OPTIONEN: { -l -c[Chipname] -s[Größe des Abbilds] (-n [Offset) }  { -o[Dateiname] }  { -a -e -p }  { -O }  { -h }  { -y }]\n"
+}
+	
+function Help(){
+	echo -e  "2018 by Norman Wißner (n.wissner@gmx.de)\n"
+	USAGE
+	echo    "Ohne die Angabe von Argumenten werden nur Binär-, Listing- und Labeldatei erstellt und diese im lokalen Verzeichnis "\"bin"\" gespeichert."
+	echo
+	echo_blue "OPTIONEN\n"
+	echo -e	  "\\033[1mStandardfunktionen\\033[0m "
+	echo -e	" -l\t\t\tSchaltkreisauswahl-Dialog starten (überschreibt -s)"
+	echo -e	" -c ["\"Chipname"\"]\tName des Speicherschaltkreises (überschreibt -s und -l)"
+	echo -e	" -s [Größe in Bytes]\tROM-Abbild mit angegebener Größe erstellen, wie -p, aber ohne Programmierung"
+	echo -e	" -n [Größe in Bytes]\tOffset bei der Erstellung des ROM-Abbilds (auch bei -l und -p möglich)\n"
+	echo -e	" -o [Output-Datei]\tAbweichender Name der Dateiausgabe ohne Endung (sonst wie Quelldatei)"
+	echo -e	" -d [Zielverzeichnis]\tArbeitsverzeichnis festlegen (Standard: ${VERZ}), relatives oder absolutes Verzeichnis\n"
+	
+	echo -e	" -e\t\t\tEmulierung des erzeugten Codes"
+	echo -e	" -p\t\t\tProgrammierung des Codes in einen nichtflüchtigen Speicherschaltkreis mit Programmiergerät MiniPro"
+	echo -e	" -a\t\t\tProgrammierung und Emulierung einschalten (wie -ep)\n"
+	
+	
+	echo -e	  "\\033[1mErweiterte Funktionen\\033[0m "
+	echo -e	" -I \t\t\tInstallation von Script und Dienstprogrammen (erfordert Root-Rechte). Aufruf dann über z80-assi (usr/local/bin)"
+	echo -e	" -O\t\t\tNach Abschluss Arbeitsverzeichnis öffnen"
+	echo -e	" -y\t\t\tSchaltkreis auch bei falscher ID programmieren und im Anschluss verifizieren "
+	echo -e	" -v\t\t\tSchaltkreis nach Programmierung verifizieren "
+	echo -e	" -h, --help\t\tDiese Hilfe anzeigen\n"
+	echo_blue "BEISPIELAUFRUFE\n"
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm\\033[0m "
+	echo -e	  "Kompiliert /home/[Benutzername]/Code.asm zu /home/[Benutzername]/bin/Code.bin. Listing- und Labeldateien werden ebenda erstellt. \n"	
+	echo -e	  "\\033[1m${0##*/} Code.z80 -pl\\033[0m"
+	echo -e	  "Kompiliert Code.z80 zu bin/Code.bin, startet Schaltkreisauswahl und programmiert den gewählten Speicherschaltkreis.\n"
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm -a -o test\\033[0m"
+	echo -e	  "Kompiliert /home/[Benutzername]/Code.asm zu /home/[Benutzername]/bin/test.bin, emuliert das Programm und programmiert den Speicherschaltkreis.\n"
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm -c "\"M27256 @DIP28"\" -p -y\\033[0m"
+	echo -e	  "Kompiliert die Datei und programmiert sie in ein EPROM M27256, auch bei falscher ID. Es erfolgt eine Datenverifizierung.\n"
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm -n 32K -s 64K\\033[0m"
+	echo -e	  "Kompiliert die Datei und erstellt ein ROM-Image von 65536 (0xFFFF) Bytes Größe. \nDie Binärdaten starten ab Adresse 0x8000, davor und danach wird mit 0xFF gefüllt.\n"
+}
 
 #Variablen initialisieren
 
@@ -110,21 +152,39 @@ VERZ=0
 #POSIX Help
 if [[ $@ = *"--help"* ]]; then HILFE=1; fi
 
-#Quelldatei
+
+#QUELLDATEI 
+#Keine Argumente
+if [ "$#" == "0" ]; then
+			echo_red "Keine Quelldatei angegeben.\nAbbruch.\n$0 -h, aufrufen, um die Hilfedatei anzuzeigen.\n"
+			Usage
+			exit 1
+			fi
+
 ARG1=$1
 ARGB=$(echo ${ARG1} | cut -c1)
 
-if ! [ "$ARGB" ==  "-" ]; then 
+if ! [ "$ARGB" ==  "-" ]; then # kein '-'-> Quelldatei
 		QUELLE=$ARG1
 		shift
-	else
-		if ! [ "$ARG1" == "-I" ] && ! [ "$ARG1" == "-h" ] && ! [ "$ARG1" == "--help" ]; then
+	elif [ "$ARG1" == "-h" ] || [ "$ARG1" == "--help" ]; then
+		Help	
+		exit 0
+	elif ! [ "$ARG1" == "-I" ] ; then
 			echo $ARG1
-			echo_red "\nQuelldatei nicht angegeben.\nAbbruch.\n$0 -h aufrufen, um die Hilfedatei anzuzeigen.\n"
-			echo_blue "BENUTZUNG:\n${0##*/} [Quelldatei] [OPTIONEN: { -l -c[Chipname] -s[Größe des Abbilds] (-n [Offset) }  { -o[Dateiname] }  { -a -e -p }  { -O }  { -h }  { -y }]\n\n"
+			echo_red "Keine Quelldatei angegeben.\nAbbruch.\n$0 -h, aufrufen, um die Hilfedatei anzuzeigen.\n"
+			Usage
 			exit 1
 			fi
-	fi
+
+#QUELLDATEI	AUF VORHANDENSEIN PRÜFEN
+	echo -ne "\\033[34;1m\n\nQuelldatei:\t\t\033[0m${QUELLE}"
+	if [[ -e  ${QUELLE} ]]; then 
+		echo_green " OK"
+	else
+		echo_red " FEHLER\nDatei ${QUELLE} nicht gefunden. \nAbbruch.\n"
+		exit 1
+	fi	# Existiert Quelldatei
 
 #Argumente auswerten
 while getopts "ac:d:ehIln:o:Ops:vy" OPTION; do
@@ -157,43 +217,7 @@ echo -en "v 0.2a\n"
 # HILFE
 if [[ $HILFE -eq 1 ]]
 	then
-		echo -e  "2018 by Norman Wißner (n.wissner@gmx.de)\n"
-		echo_blue "BENUTZUNG:\n${0##*/} [Quelldatei] [OPTIONEN: { -l -c[Chipname] -s[Größe des Abbilds] (-n [Offset) }  { -o[Dateiname] }  { -a -e -p }  { -O }  { -h }  { -y }]\n"
-		echo    "Ohne die Angabe von Argumenten werden nur Binär-, Listing- und Labeldatei erstellt und diese im lokalen Verzeichnis "\"bin"\" gespeichert."
-		echo
-		echo_blue "OPTIONEN\n"
-		echo -e	  "\\033[1mStandardfunktionen\\033[0m "
-		echo -e	" -l\t\t\tSchaltkreisauswahl-Dialog starten (überschreibt -s)"
-		echo -e	" -c ["\"Chipname"\"]\tName des Speicherschaltkreises (überschreibt -s und -l)"
-		echo -e	" -s [Größe in Bytes]\tROM-Abbild mit angegebener Größe erstellen, wie -p, aber ohne Programmierung"
-		echo -e	" -n [Größe in Bytes]\tOffset bei der Erstellung des ROM-Abbilds (auch bei -l und -p möglich)\n"
-		echo -e	" -o [Output-Datei]\tAbweichender Name der Dateiausgabe ohne Endung (sonst wie Quelldatei)"
-		echo -e	" -d [Zielverzeichnis]\tArbeitsverzeichnis festlegen (Standard: ${VERZ}), relatives oder absolutes Verzeichnis\n"
-		
-		echo -e	" -e\t\t\tEmulierung des erzeugten Codes"
-		echo -e	" -p\t\t\tProgrammierung des Codes in einen nichtflüchtigen Speicherschaltkreis mit Programmiergerät MiniPro"
-		echo -e	" -a\t\t\tProgrammierung und Emulierung einschalten (wie -ep)\n"
-		
-		
-		echo -e	  "\\033[1mErweiterte Funktionen\\033[0m "
-		echo -e	" -I \t\t\tInstallation von Script und Dienstprogrammen (erfordert Root-Rechte). Aufruf dann über z80-assi (usr/local/bin)"
-		echo -e	" -O\t\t\tNach Abschluss Arbeitsverzeichnis öffnen"
-		echo -e	" -y\t\t\tSchaltkreis auch bei falscher ID programmieren und im Anschluss verifizieren "
-		echo -e	" -v\t\t\tSchaltkreis nach Programmierung verifizieren "
-		echo -e	" -h, --help\t\tDiese Hilfe anzeigen\n"
-		echo_blue "BEISPIELAUFRUFE\n"
-		echo -e	  "\\033[1m${0##*/} -f ~/Code.asm\\033[0m "
-		echo -e	  "Kompiliert /home/[Benutzername]/Code.asm zu /home/[Benutzername]/bin/Code.bin. Listing- und Labeldateien werden ebenda erstellt. \n"	
-		echo -e	  "\\033[1m${0##*/} -f Code.z80 -pl\\033[0m"
-		echo -e	  "Kompiliert Code.z80 zu bin/Code.bin, startet Schaltkreisauswahl und programmiert den gewählten Speicherschaltkreis.\n"
-		echo -e	  "\\033[1m${0##*/} -f ~/Code.asm -a -o test\\033[0m"
-		echo -e	  "Kompiliert /home/[Benutzername]/Code.asm zu /home/[Benutzername]/bin/test.bin, emuliert das Programm und programmiert den Speicherschaltkreis.\n"
-		echo -e	  "\\033[1m${0##*/} -f ~/Code.asm -c "\"M27256 @DIP28"\" -p -y\\033[0m"
-		echo -e	  "Kompiliert die Datei und programmiert sie in ein EPROM M27256, auch bei falscher ID. Es erfolgt eine Datenverifizierung.\n"
-		echo -e	  "\\033[1m${0##*/} -f ~/Code.asm -n 32K -s 64K\\033[0m"
-		echo -e	  "Kompiliert die Datei und erstellt ein ROM-Image von 65536 (0xFFFF) Bytes Größe. \nDie Binärdaten starten ab Adresse 0x8000, davor und danach wird mit 0xFF gefüllt.\n"
-		#echo_blue "IMPRESSUM\n"
-		
+		Help
 		exit 0
 		fi #Hilfe
 
@@ -386,16 +410,6 @@ if [ ! "$CHIP" == "0" ] && [ ! "$SIZE" == "0" ] ; then echo -e "\n\nArgumente -s
 
 # Wenn -l gegeben, Größe nullen (nicht oben, da sonst Reihenfolge der Argumente entscheidet
 if [ "$LIST" == "1" ] && [ ! "$SIZE" == "0" ] ; then echo -e "\n\nArgumente -s und --l angegeben. Die angegebene Speicherabbildgröße wird gegebenenfalls geändert."; SIZE=0;  fi
-
-
-#QUELLDATEI	AUF VORHANDENSEIN PRÜFEN
-	echo -ne "\\033[34;1m\n\nQuelldatei:\t\t\033[0m${QUELLE}"
-	if [[ -e  ${QUELLE} ]]; then 
-		echo_green " OK"
-	else
-		echo_red " FEHLER\nDatei ${QUELLE} nicht gefunden. \nAbbruch.\n"
-		exit 1
-	fi	# Existiert Quelldatei
 
 
 #ARGUMENTE PRÜFEN

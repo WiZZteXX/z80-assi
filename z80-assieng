@@ -1,0 +1,647 @@
+#!/bin/bash
+
+#Define colored Output
+function echo_red(){
+echo -e "\\033[31;1m${@}\033[0m"
+}
+
+function echo_green(){
+echo -e "\\033[32;1m${@}\033[0m"
+}
+
+#This one without line feed
+function echo_blue(){
+echo -ne "\\033[34;1m${@}\033[0m"
+}
+
+
+function echo_mgt(){
+echo -e "\\033[35;1m${@}\033[0m"
+}
+
+#For Inputs: Underline
+function echo_in(){
+echo -en "\\033[4m${@}>\033[0m"
+}
+
+
+#Receiving an input and change it from KBytes to bytes, if needed
+#IN:  1st Argument: Input string, formatting does not matter
+#OUT: Result in bytes in global variable OUTPUT
+function read_Byte(){
+INPUT=$1
+OUTPUT=""
+IS_KB=0
+
+#Only read INPUT, if it is somehting like 1000 (dec), 1000k, 1000K, 1000KB or 1000kb
+OUTPUT=$(echo ${INPUT} | grep -iE "^[[:digit:]]+($|K$|KB$)")
+
+#Error routine, if INPUT value is not valid
+if [ "$OUTPUT" == "" ] ; then return 1; fi
+
+
+#Is it KBytes?
+IS_KB=$(echo ${OUTPUT} | grep -iE "^[[:digit:]]+(K$|KB$)") # 0 no, 1 yes
+OUTPUT=${OUTPUT//k/K} # k -> K
+if ! [ "$IS_KB" == "" ]; then
+	OUTPUT=$(echo $OUTPUT | cut -dK -f1 )	# Cut off the 'KB'
+	OUTPUT=$(($OUTPUT*1024))				# multiply by 1024
+	fi
+return 0
+}
+
+
+# Get the Chipsize of an IC via the minipro programmer. 
+# IN:  Argument 1: $CHIP hat to be valid an <> 0
+# OUT: global variable $SIZE 
+function GetChipSize () {
+	echo -n "Getting chip size"
+	CHIP=${@}
+	SIZE="$($MINIPRONAME -p"${CHIP}" -w $HOME/MiniproDevices.txt -y 2>&1 | head --lines=1 | cut -d"(" -f2 | cut -c 8- | cut -d")" -f1)"
+	#Check, if it was successfully adapted, otherwise prompt it manually
+		if [[ `echo "$SIZE" | grep -E ^[[:digit:]]+$` ]]; then 			# success
+			echo_green " OK"
+		elif [[ "$SIZE" == "pening device" ]]; then 					# programming device not connected
+			echo_red "\nCould not find aut the chip soze automatically. Manual selection?"
+			ChipSize_man			
+		else echo_red "\nChip $CHIP not found! Starting interactive selection."; 	# IC not found
+			 LIST=1;	
+		fi	
+return 0
+}
+
+
+function ChipSize_man () {
+	echo_in "Type the size manually? (Type in the momeory size in bytes (e.g. 2048) or kilobytes (e.g. 64K) or Cancel (Enter) )"
+	read SIZE
+	read_Byte $SIZE
+			if [[ $? -eq 0 ]] ; then SIZE=$OUTPUT
+				else echo_red "Cancelling.\n"; exit 1
+			fi
+	return 0
+	}
+	
+function Usage(){
+	echo_blue "USAGE:\n${0##*/} [source file] [OPTIONS]"
+	echo_blue "\nOptions: -l -c[chip name] -s[image size] (-n [offset) }  { -o[output filename] }  { -a -e -p }  { -O }  { -h }  { -y }\n"
+}	
+	
+function Help(){
+	echo -e "2018 by Norman Wißner (n.wissner@gmx.de)\n"
+	Usage
+	echo "Without specifying ay options, only list, binary and label files will be created in the local directory 'bin'"
+	echo
+	echo_blue "OPTIONS\n"
+	echo -e	  "\\033[1mBasic functions\\033[0m "
+	echo -e	" -l\t\t\tStart interactive chip selection (overwrites -s)"
+	echo -e	" -c ["\"Chip name"\"]\tName of the memory IC (overwrites -s and -l)"
+	echo -e	" -s [Size in bytes]\tCreate ROM image with the specified size (like -p, but without programming the device)"
+	echo -e	" -n [Size in bytes]\tCode offset when creating the ROM image (possible with -s, -l and -p\n"
+	echo -e	" -o [Output file]\tOutput name without file extension (otherwise like the source file's basename)"
+	echo -e	" -d [Target directory]\tSpecifiy the working directory (standard: ${VERZ}), relative or absolute directory\n"
+
+	echo -e	" -e\t\t\tEmulation of the created machine code"
+	echo -e	" -p\t\t\tCode programmingusing the MiniPro programmer"
+	echo -e	" -a\t\t\tSwitch programming and emulation on (like -ep)"
+
+
+	echo -e	  "\\033[1mExtended funktions\\033[0m "
+	echo -e	" -I \t\t\tInstall this script and requested service programs (requires root access).\n\t\t\tAfterwards, it can be called as z80-assi globally from (usr/local/bin)"
+	echo -e	" -O\t\t\tOpen the working directory when finished"
+	echo -e	" -y\t\t\tTry to program the IC on an wring ID and verify afterwards "
+	echo -e	" -v\t\t\tVerify the programmed code"
+	echo -e	" -h, --help\t\tShow this help\n"
+	echo_blue "EXAMPLE CALLS\n"
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm\\033[0m "
+	echo -e	  "Assembles /home/[username]/Code.asm to /home/[username]/bin/Code.bin. Listing and label file are created in the same directory."	
+	echo -e	  "\\033[1m${0##*/} -f Code.z80 -pl\\033[0m"
+	echo -e	  "Assembles Code.z80 to bin/Code.bin, calls the interactive chip selection and programs the selcted device."
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm -a -o test -l\\033[0m"
+	echo -e	  "Assembles /home/[username]/Code.asm to /home/[username]/bin/test.bin, emulates the code and programs it"
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm -c "\"M27256 @DIP28"\" -p -y\\033[0m"
+	echo -e	  "Assembles the file Code.asm and programs it into an EPROM M27256, even with wrong ID. On finish, the code will be verified."
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm -n 32K -s 64K\\033[0m"
+	echo -e	  "Assembles the file Code.asm and creates an ROM image of 65536 (0xFFFF) Bytes. \nThe machine code starts at adress 0x8000. the rest is filled with 0xFF.\n"
+	}
+
+#Initialize Variables
+
+ONAME=0
+CHIP=0
+CHIPSIZE="65536"
+MINIPRONAME="minipro"
+ASSEMBLER="z80asm"
+EMULATOR="z80-mon"
+FILLCHAR='\xFF'
+EMUL=0
+GUI=0
+HILFE=0
+LIST=0
+OPEN=0
+PROG=0
+VERI=0
+SIZE=0
+USESIZE=0
+YES=0
+OFFSET=0
+INSTALL=0
+UNAME=$(echo ~ | cut -d/ -f3)
+INSTPATH=temp
+VERZ=0
+
+# Header
+clear
+echo_red "Z80-Assistent" 
+echo -en "v 0.2b\n"
+
+#POSIX Help
+if [[ $@ = *"--help"* ]]; then HILFE=1; fi
+
+#Get the source file
+#No args supplied
+if [ "$#" == "0" ]; then
+			echo_red "No source file specified.\nCancelling.\nCall n$0 -h, to show full help file."
+			Usage
+			exit 1
+			fi
+
+ARG1=$1
+ARGB=$(echo ${ARG1} | cut -c1)
+
+if ! [ "$ARGB" ==  "-" ]; then # no leading '-' -> it's the source file
+		QUELLE=$ARG1
+		shift
+	elif [ "$ARG1" == "-h" ] || [ "$ARG1" == "--help" ]; then
+		Help	
+		exit 0
+	elif ! [ "$ARG1" == "-I" ] ; then
+			echo $ARG1
+			echo_red "\nSource file not specified.\nCancelling.n\Call n$0 -h, to show help file.\n"
+			Usage
+			exit 1
+			fi
+			
+#Does the source file exist
+	echo -ne "\\033[34;1m\nSource File:\t\t\033[0m${QUELLE}"
+	if [[ -e  ${QUELLE} ]]; then 
+		echo_green " OK"
+	else
+		echo_red " ERROR\nFile ${QUELLE} not found. \nCancelling.\n"
+		exit 1
+	fi	# source file exist
+	
+
+#Interpret the options and arguments
+while getopts "ac:d:ehIln:o:Ops:vy" OPTION; do
+	case "${OPTION}" in
+		a) PROG=1; EMUL=1; USESIZE=1;;
+		d) VERZ=$OPTARG;;
+		c) CHIP=$OPTARG; LIST=0; USESIZE=1;;
+		e) EMUL=1;;
+		h) HELP; Exit 0;;
+		I) INSTALL=1;;
+		l) LIST=1;;
+		n) OFFSET=$OPTARG;; 
+		o) ONAME=$OPTARG;;
+		O) OPEN=1;;
+		p) PROG=1; USESIZE=1;;
+		s) SIZE=$OPTARG; USESIZE=1;;
+		v) VERI=1; YES=1;;	
+		y) YES=1;;
+		'?') HILFE=1;;
+		esac
+done
+
+# Help
+if [[ $HILFE -eq 1 ]]
+	then
+		Help
+		exit 0
+		fi #Help
+
+
+# INSTALL PREREQUISITS
+if [[ $INSTALL -eq 1 ]]; then
+SUCC=0
+ERR=0
+NOT=0
+IMON=0
+IASM=0
+IMINI=0
+
+	##Check directory
+	var=$(echo ${INSTPATH} | cut -c1)
+	if ! [ "$var" == "/" ] ; then INSTPATH="$(dirname $(readlink -e $0))/${INSTPATH}/";
+	else 
+	INSTPATH="${INSTPATH}/"
+	fi
+	
+	
+	mkdir -p ${INSTPATH}
+	cp "$(dirname $(readlink -e $0))/${0##*/}" "/usr/local/bin/z80-assi"
+	chmod +x "/usr/local/bin/z80-assi"
+	
+	echo_blue "\nInstalling required programs\n\n"
+	#SUDO?
+	if [ ! `id -u` = 0 ]; then 
+	echo_red "Please call this script with root acess for installation. (sudo ${0##*/})";
+	exit 1
+	else	
+	
+    #PRÜFSCHLEIFE
+    echo_blue "Checking for required programs\n"
+    
+			echo -n "Z80 assembler (z80asm by Bas Wijnen)"
+			teste=$(z80asm -h 2>&1 | head -n1)
+			if [ "$teste" == "Usage: z80asm [options] [input files]" ] ; then 
+				echo_green " OK"; NOT=$(( NOT + 1 ))
+				else echo_red " Not found."; IASM=1; fi
+
+				
+			echo -n "Z80 monitor (z80-mon by Brainsoft)"
+			teste=$(z80-mon -h 2>&1 | head -n1 | cut -d' ' -f1-2 )
+			if [ "$teste" == "Z80 monitor" ] ; then 
+				echo_green " OK"; NOT=$(( NOT + 1 ))
+				else echo_red " Not found."; IMON=1; fi
+
+			echo -n "MiniPro programming software (minipro byn Valentin Dudouyt)"			
+			teste=$(minipro -h 2>&1 | head -n1 | cut -d' ' -f1-2 )
+			if [ "$teste" == "minipro version" ] ; then 
+				echo_green " OK"; NOT=$(( NOT + 1 ))
+				else echo_red " Not found."; IMINI=1; fi
+					
+	
+			
+			#INSTALLATIONSSCHLEIFE
+			if [[ IMINI -eq 1 ]] || [[ IMON -eq 1 ]] || [[ IASM -eq 1 ]] ; then 
+			
+						echo -e "\nInstallation path: ${INSTPATH}"
+						cd ${INSTPATH}/
+						chown -R ${UNAME} ${INSTPATH}
+						chmod -R 777 ${INSTPATH}
+
+						echo_blue "Installing required programs to $INSTPATH\n"
+			
+						#minipro
+						if [[ IMINI -eq 1 ]]; then
+							echo_green "Installing minipro..."
+							git -C "${INSTPATH}" clone https://github.com/vdudouyt/minipro.git 
+							cd "minipro/"
+							make
+							sudo make install
+							make clean
+							teste=$(minipro -h | head -n1 | cut -d' ' -f1-2 )
+							if [ "$teste" == "minipro version" ] ; then 
+									echo_green "Installation of minipro successful.\n"
+							else 
+									echo_red "Error on installing minipro. Please retry manually.\n"
+									echo $teste
+									ERR=$(( ERR + 1 )) 
+							fi
+							cd ${INSTPATH}/
+						fi
+						
+							
+						##z80-mon
+						if [[ IMON -eq 1 ]]; then
+							echo_green "Installing z80-mon..."
+							mkdir -p "${INSTPATH}z80-mon"
+							cd "${INSTPATH}z80-mon"
+							wget "http://wwwhomes.uni-bielefeld.de/achim/z80-asm/z80-asm-current.tar.gz"
+							tar -xzf "z80-asm-current.tar.gz" -C"${INSTPATH}z80-mon/"
+							var=$( ls -d */doc | cut -d/ -f1)
+							cd "${INSTPATH}z80-mon/${var}"
+							make
+							cp z80-mon /usr/local/bin/
+							make clean
+							teste=$(z80-mon -h | head -n1 | cut -d' ' -f1-2 )
+							if [ "$teste" == "Z80 monitor" ] ; then
+								echo_green "Installation of z80-mon successful.\n"
+							else 
+								echo_red "Error on installing z80-mon. Please retry manually\n"
+								ERR=$(( ERR + 1 )) 
+							fi
+							cd ${INSTPATH}/
+						fi		
+							
+							
+						##z80asm
+						if [[ IASM -eq 1 ]]; then
+							echo_green "Installing z80asm..."
+							mkdir -p "${INSTPATH}/z80asm"
+							cd "${INSTPATH}/z80asm"
+							wget "http://download.savannah.nongnu.org/releases/z80asm/z80asm-1.8.tar.gz"
+							tar -xzf "z80asm-1.8.tar.gz" -C"${INSTPATH}/z80asm/"
+							var=$( ls -d */examples | cut -d/ -f1)
+							cd "${INSTPATH}z80asm/${var}"
+							make
+							cp z80asm /usr/local/bin/
+							make clean
+							teste=$(z80asm -h | head -n1)
+							if [ "$teste" == "Usage: z80asm [options] [input files]" ] ; then 
+								echo_green "Installation of z80asm successful."
+							else 
+								echo_red "Error on installing z80asm. Please retry manually"
+								ERR=$(( ERR + 1 )) 
+							fi
+							cd "${INSTPATH}/"
+						fi
+			
+			chown -R ${UNAME} .
+			chmod -R 777 .		
+			echo_green "\nInstallation successfull. $NOT programs not installed.\n"
+			exit 0  
+    
+			if [[ $ERR -gt 0 ]] ; then 
+			echo_red  "$ERR Errors on installation. Try to install them manually.\n"
+			exit 1
+			fi
+			
+		
+
+ else #INST-SCHLEIFE 
+    echo_green "\nAll service programs allready installed. Cancelling.\n"
+
+    fi 
+    		echo_blue "Cleaning up..."
+			rm -rf "${INSTPATH}/"
+			echo_green " OK\n"
+			    exit 0
+    
+fi #SUDO
+
+    
+fi #INSTALL
+
+
+	 
+# Output directory
+	##Check directory
+	
+	
+	VERZ1="$(dirname $(readlink -e $QUELLE))/bin"
+	if [ "${VERZ}" == "0" ] ; then VERZ="${VERZ1}"; 
+	else VERZ="$( realpath ${VERZ} )"
+	fi
+	
+	mkdir -p ${VERZ}
+	
+# File names
+if [ "${ONAME}" == "0" ]; then obasename=$( basename ${QUELLE}  | cut -d. -f1 )
+	else obasename=$( echo ${ONAME}| cut -d. -f1 ); fi
+	
+# adress the source file globally
+	VERZ1="$(dirname $(readlink -e $QUELLE))/"
+	QUELLE=$( realpath ${QUELLE} )
+	
+binname="${VERZ}/${obasename}.bin"			#Binärdatei
+listname="${VERZ}/${obasename}.list.z80"		#Listendatei
+labelname="${VERZ}/${obasename}.labels.z80"	#Listendatei
+emuname="${VERZ}/${obasename}.emu.bin"		#Emulationsdatei mit Header
+romname="${VERZ}/${obasename}.rom.bin"		#Chipdatei (gefüllt mit 0xFF)
+
+# Zero the size, if IC and -s specified
+if [ ! "$CHIP" == "0" ] && [ ! "$SIZE" == "0" ] ; then echo -e "\n\nWARNING\nOptions -s and -c supplied. The specified image size will be changed."; SIZE=0;  fi
+
+
+# Zero the size, if IC and -l specified
+if [ "$LIST" == "1" ] && [ ! "$SIZE" == "0" ] ; then echo -e "\n\nWARNING\nOptions -s and -c supplied. The specified image size will be changed."; SIZE=0;  fi
+
+#check options
+#Offset (-n)
+if [ ! "$OFFSET" == "0" ]; then
+read_Byte $OFFSET
+	if [[ $? -eq 0 ]] ; then OFFSET=$OUTPUT
+		else
+		OFFSET=0
+		echo_red "\nWARNING\nOffset value not recognized nicht erkannt. Zeroing the offset."
+		echo  "Possible inputs e.g. -n 1000 (=1000 bytes) or -n 64K (=65536 bytes) or -n 2KB (=2048 bytes)"
+		fi
+	#Offset output	
+	echo -ne "\\033[34;1mOffset:\t\t\t\033[0m${OFFSET} bytes\n"
+
+	fi
+
+#Size (-s)
+if [ ! "$SIZE" == "0" ]; then
+	read_Byte $SIZE
+	if [[ $? -eq 0 ]] ; then SIZE=$OUTPUT
+		else
+		SIZE=0
+		echo_red "\nWARNING\nSize value not recognized nicht erkannt. Zeroing the size."
+		echo  "Possible inputs e.g. -s 1000 (=1000 bytes) or -n 64K (=65536 bytes) or -n 2KB (=2048 bytes)"
+		ChipSize_man
+		fi
+	fi
+
+
+#Initialize Size, if -l not supplied
+#Only specify the size, if it's really needed
+if [ "$LIST" == "0" ] && [ "$USESIZE" == 1 ] ; then
+			# Chip without size
+			if  [ ! "${CHIP}" == "0" ] && [ "$SIZE"  == "0" ]; then GetChipSize ${CHIP}; fi
+
+
+			#should program, but no chip specified -> start interactive selection
+			if  [ "${CHIP}" == "0" ] && [ "$PROG" == "1" ] ; then 
+				 echo_red "Programming mode requested, but no memory IC specified.\nStarting interactive chip selection.\n"
+				 LIST=1
+				 fi
+		fi
+		
+#Interactive chip selection
+if [[ $LIST -eq 1 ]]
+	then
+		echo_blue "Creating a list of available memory ICs"
+		${MINIPRONAME} -l | sort -u > ${HOME}/MiniproDevices.txt
+		err=$?
+		if [[ $err -eq 0 ]]; then
+			echo_green " OK"
+			if [[ $VERB -eq 1 ]]; then echo "${MINIPRONAME} -l | sort -u > ${HOME}/MiniproDevices.txt"; fi
+			while true; do
+				echo
+				echo_in "Enter a search criterion for the chip's name (no wild-cards, e.g. 27C512)"
+				read var
+				if [ "$var" == '' ]; then
+				if [ -z $var ] ; then var="___"; fi #No empty input allowed
+				fi
+				
+				var=${var// /[[:space:]]}									#Replace spaces with [[:space::]]
+				grep  $var -n -i --color=always ${HOME}/MiniproDevices.txt	#Show line numbering
+				var2="$(grep  $var -c -i ${HOME}/MiniproDevices.txt)" 		#Number of filtered ICs
+												
+				if [[ $var2 -eq 0 ]] 
+					then echo_red "The search was not successful."
+					else 
+					if [[ $var2 -eq 1 ]]; then # Just one
+						var2=$(grep  $var -n -i ${HOME}/MiniproDevices.txt | cut -d":" -f1)
+						CHIP=$(head -n${var2} ${HOME}/MiniproDevices.txt|tail -n1)
+						break
+						else #More than one
+						echo_green "$var2 Chips found."
+						echo_in "Retry (Enter), Cancel (A) or select an IC (Type in the consecutive number)? "
+						read -n5 var
+							case "$var" in 
+							  A|a ) echo_red "Selction cancelled.\n";exit;;
+							  *   ) if [[ `echo "$var" | grep -E ^[[:digit:]]+$` ]] #Number?
+									then CHIP=$(head -n${var} ${HOME}/MiniproDevices.txt|tail -n1) #Read the line
+										echo
+										break
+										else echo
+									fi
+							  
+							esac
+						fi
+					fi
+				done
+				#Get the memory size
+				GetChipSize ${CHIP}
+				fi
+
+	
+		fi #Chip list
+
+		#####
+ #Output of the chip and it's memory size. Should be OK here
+ if  [ "${CHIP}" == "0" ] ; then 
+		if ! [ "$SIZE" == "0" ]; then echo -e "\\033[34;1mImage soze:\t\t\033[0m$SIZE bytes\n"; else echo -e "\n" ;fi
+		else echo -e "\\033[34;1mIntegrated circuit:\t\t\033[0m$CHIP ($SIZE bytes)\n"; 
+		fi		
+		
+# KOMPILIEREN
+echo_blue "Assembling the file (${QUELLE})"
+
+${ASSEMBLER} ${QUELLE} -o${binname} -l${listname} -L${labelname} -I${VERZ1}  #>> ${VERZ}/${basename}.log
+err=$?
+
+if [ $err -eq 0 ] ;	then echo_green " OK";
+				else echo_red "Errors occured. Cancelling."; echo; exit 1
+				fi
+
+		 
+#Speicherauslastung
+if [ $USESIZE -eq 1 ]
+ then
+ binsize="$(ls -l ${binname} | cut -f5 -d" ")"
+ var="$( echo "scale=10 ;100/$SIZE*$binsize*1000" | bc -l | head -c7) "
+ fullsize="$( echo "scale=2; $var/1000" | bc -l )"
+ echo -ne "Memory used:\t$binsize/$SIZE bytes ($fullsize %)"
+ if [ $SIZE -ge $binsize ]; then echo_green " OK";
+	else echo_red " ERROR\nMemory full! Select another chip or minimize the code!\nCancelling.\n"; exit 1
+	fi 
+ fi
+
+	
+echo -e "\\033[34;6mAssembly file:\t\t\033[0m${binname}"
+echo -e "\\033[34;6mList file:\t\t\033[0m${listname}"
+echo -e "\\033[34;6mLabel file:\t\t\033[0m${labelname}\n"	
+
+#ROM-IMAGE ERSTELLEN
+if [[ $USESIZE -eq 1 ]] ; then
+echo_blue "Creating ROM Image ($SIZE bytes)\n"
+
+#check if OFFSET + SIZE fit
+echo -ne "Cheching size\t\t($(($binsize + $OFFSET ))/$SIZE bytes used) "
+if [[ $(( $binsize + $OFFSET )) -gt $SIZE  ]]; then
+			echo_red "FEHLER\nThe Code does not fit into the image. Minimize offset or code or select another chip!\nCancelling."
+			PROG=0
+		else	
+			echo_green "OK"
+			#Create the files and initialize the variables
+			echo -n > ${romname}
+			globcount=0
+			count=0
+
+			#Write the offset		
+			if [[ OFFSET -ne 0  ]]; then 
+			echo -ne "Offset\t\t\t$OFFSET bytes\t"
+				while [[ $count -ne  $OFFSET ]] ; do
+				count=$(( $count + 1 ))
+				echo -ne $FILLCHAR >> ${romname}
+				done
+				globcount=$count
+				echo_green "OK"
+			fi
+			
+			
+			#Write binary files
+			echo -ne "Binyry file:\t\t$binsize bytes\t"
+			cat ${binname} >> ${romname}
+			globcount=$(( $globcount+$binsize ))
+			echo_green "OK"
+			
+			#Fill with fill chars until size reached
+			echo -ne "Fill characters\t\t$(($SIZE - $OFFSET - $binsize)) bytes\t"
+			count=$globcount
+			var=""
+			while [[ $count -ne  $SIZE ]] ; do
+			count=$(( $count + 1 ))
+			echo -ne $FILLCHAR >> ${romname}
+			done
+
+			globcount=$count
+			echo_green "OK"
+			echo -en "\\033[34;6mROM image:\t\t\\033[0m${romname}"
+			fi
+	
+	#Check, if the file exists and the size is OK
+	var=$(ls -al ${romname} | cut -d" " -f 5)
+	
+	if [[ `echo "$var" | grep -E ^[[:digit:]]+$` ]] ; then 
+		if [[ $var -eq $SIZE ]] ; then echo_green " OK\n"
+		else echo_red " ERROR\nFile has the wrong size ($var/$SIZE bytes)\n"; PROG=0
+		fi
+	else 
+		echo_red " ERROR\nFile not found.\n" 
+		PROG=0
+	fi				
+	
+
+#PROGRAMMING
+if [[ $PROG -eq 1 ]] ; then 
+
+	
+	echo_blue "Programming the integrated circuit (${CHIP})\n"
+	var="-w ${romname}"
+	#Modus ID-Prüfung
+	if [[ $YES -eq 1 ]]; then var="${var} -y"; fi
+	#Modus Verifizieren
+	if [[ $VERI -eq 0 ]]; then var="${var} -v"; fi
+					
+	
+	${MINIPRONAME} -p"${CHIP}" ${var} 
+	echo $erg
+	if [ $? -eq 0 ]
+		then echo_green "OK\n"
+		else echo_red "ERROR\nError on programming the IC.\n"
+		if [[ $EMUL -eq 0 ]] ; then exit 1; fi
+		fi
+		
+	fi
+fi
+			
+#EMULATE
+if [[ $EMUL -eq 1 ]] ; then
+	echo_blue "Crating emulation file"
+	echo -n -e "Z80ASM\x1A\x0A\x0\x0" > ${emuname}
+	cat ${binname} >> ${emuname}
+	echo_green " OK"
+	echo -e "\\033[34;6mEmulation file:\t\033[0m${emuname}"
+	echo
+	echo 
+	echo_blue "Emulating the file"
+	echo_green " OK"
+	sleep 200
+	z80-mon ${emuname}
+	fi
+
+
+#Open working dircetory
+if [[ $OPEN -eq 1 ]] ; then	nautilus bin &>> ${VERZ}/${basename}.log &
+	fi
+
+#Done
+echo_green "Finished.\n"
+exit 0
+
+
