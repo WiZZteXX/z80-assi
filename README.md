@@ -19,9 +19,9 @@ All-In-One Emulation, Assembling and Programming of Z80 processor code using min
 * z80asm (https://galera.ii.pw.edu.pl/sml3/PDF/Z80ASM.pdf) --> needed for code assembling
 
 ## FILES
-* z80-assi: 	The Programme
+* z80-assi: 	The Program
 * z80-assi-??: 	Language Files (see below)
-* REAMDE.md: 	README file
+* README.md: 	README file
 
 
 ## USAGE
@@ -77,7 +77,8 @@ which will create a local file **bin/test.rom.bin**. The rest is self-explanive,
 Tell me, if You find some! ;)
 
 ## LANGUAGE FILES
-If no language file for Your local setting exists, the script will try to download it everytime being called. If nothing found, it will use English.
+If no language file for Your local setting exists, the script will try to download it everytime being called. 
+If nothing found, it will use English.
 If Your language does not yet exist, then You can simply create a translation file from the template like this:
 * 1. cd to "~/.z80"
 * 2. open "z80-assi-langtemplate" in Your favorite editor
