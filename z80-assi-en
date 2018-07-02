@@ -1,11 +1,7 @@
 #!bin/bash
-<<<<<<< HEAD
 _LAN="en"
 _VERSION="0.1"
 _DEVELOPED="WiZZteXX"
-=======
-_LIN="en"
->>>>>>> 1f338c1532d681b51cef4bdf7d2a0f215c487a25
 
 _OK="OK"
 _ERROR="ERROR"
@@ -28,7 +24,6 @@ _EMULATING="Emulating"
 _NOTFOUND="not found"
 _FOUND="found"
 _FAILED="failed"
-<<<<<<< HEAD
 _BY="by"
 _TO="to"
 _CHIP="Chip"
@@ -36,10 +31,6 @@ _CHIPS="chips"
 _CHIPSFOUND="${_CHIPS} ${_FOUND}"
 _NCHIPSFOUND="No ${_CHIPSFOUND}"
 _NOCHIP="${_CHIP} not specified"
-=======
-_CHIP="Chip"
-_CHIPS="chips"
->>>>>>> 1f338c1532d681b51cef4bdf7d2a0f215c487a25
 _BYTES="Bytes"
 _DATABASE="database"
 _FILE="file"
@@ -62,12 +53,6 @@ _MEMUSED="Memory used"
 _MEMFULL="Memory full!"
 _CONFIRM="Continue (Enter) or Cancel (Ctrl+C)"
 _COULDNTAUTODETECT="Could not auto-detect the chip size."
-<<<<<<< HEAD
-=======
-_NOCHIP="Chip not specified"
-_NCHIPSFOUND="No chips found"
-_CHIPSFOUND="chips found"
->>>>>>> 1f338c1532d681b51cef4bdf7d2a0f215c487a25
 _MCHIPSFOUND="Try a more specific search key"
 _CHIPSPROMPT="Research (Enter), Cancel (Ctrl+C) or select chip"
 _CHIPNAME="Name of the chip or a part of it?"
@@ -79,11 +64,6 @@ _INSTINSTPROG="Downloading required programs to"
 _COULDNTINST="Could not install"
 _SERVALLRINST="All service programs allready installed"
 _FNFDONOEX="File not found or not executable"
-<<<<<<< HEAD
-=======
-_BY="by"
-_TO="to"
->>>>>>> 1f338c1532d681b51cef4bdf7d2a0f215c487a25
 _CALL="Call"
 _SHOWHELP="to show full help file"
 _PROGRAMS="service programs"
@@ -130,8 +110,3 @@ _HS5="${_ASSEMBLES} Code.asm and creates an ROM image of 65536 (0xFFFF) Bytes.\n
 _HBYTESORKB="${_BYTES} or KB"
 _HOUTPUTFILE="Output ${_FILE}"
 _HTARGETDIR="Target Directory"
-
-
-
-
-
