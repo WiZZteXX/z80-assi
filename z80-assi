@@ -146,7 +146,7 @@ function ChipSize_man () {
 	
 function Usage(){
 	print_duotext "${_USAGE}" "\t${0##*/} [${_SRCFILE}] [${_HOPTIONS}]\n"
-	print_duotext "${_HOPTIONS}" "{-l -c[${_HCHIPNAME}] -s[${_IMG} ${_SIZE}] (-n[${_OFFSET})}  (-o[${_OUTPUT} ${_FILENAME}]) ({-a -e -p} (-O) (-h) (-y) (-v) })\n"
+	print_duotext "${_HOPTIONS}" "{-l -c[${_HCHIPNAME}] -s[${_IMG} ${_SIZE}] (-n[${_OFFSET}]}  (-o[${_OUTPUT} ${_FILENAME}]) ({-a -e -p} (-O) (-h) (-y) (-v) })\n"
 }	
 
 function Help(){
