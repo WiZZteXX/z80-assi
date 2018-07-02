@@ -57,16 +57,8 @@ return 0
 function GetChipSize () {
 	echo -n "Ermittle Chipgröße"
 	CHIP=${@}
-	SIZE="$($MINIPRONAME -p"${CHIP}" -w $HOME/MiniproDevices.txt -y 2>&1 | head --lines=1 | cut -d"(" -f2 | cut -c 8- | cut -d")" -f1)"
-	#Prüfung, ob aus Programmer übernommen, sonst manuell eingeben
-		if [[ `echo "$SIZE" | grep -E ^[[:digit:]]+$` ]]; then 			# hat geklappt
-			echo_green " OK"
-		elif [[ "$SIZE" == "pening device" ]]; then 					# Programmer nicht angeschlossen
-			echo_red "\nKann Größe des Schaltkreises nicht automatisch ermitteln. Programmiergerät nicht angeschlossen?"
-			ChipSize_man			
-		else echo_red "\nSchaltkreis $CHIP nicht gefunden! Starte Auswahldialog."; 	# Chip nicht gefunden
-			 LIST=1;	
-		fi	
+	Chipline=$(cat ${Chipfile} | grep \"${CHIP// /[[:space:]]}\" -n | cut -d: -f1)
+	$SIZE=$(echo "ibase=16;$(head -n$(( $Chipline + 5 )) ${Chipfile} |tail -n1 | cut -d" " -f3 | cut -d"," -f1 | cut -d"x" -f2)" | bc)	
 return 0
 }
 
@@ -121,6 +113,15 @@ function Help(){
 	echo -e	  "Kompiliert die Datei und programmiert sie in ein EPROM M27256, auch bei falscher ID. Es erfolgt eine Datenverifizierung.\n"
 	echo -e	  "\\033[1m${0##*/} ~/Code.asm -n 32K -s 64K\\033[0m"
 	echo -e	  "Kompiliert die Datei und erstellt ein ROM-Image von 65536 (0xFFFF) Bytes Größe. \nDie Binärdaten starten ab Adresse 0x8000, davor und danach wird mit 0xFF gefüllt.\n"
+}
+
+function CreateHomeDir(){
+echo -n "Creating program directory "
+mkdir -p -m=777 ${HomeDir}
+if [ $? -eq 0 ]; then echo_green "OK"
+	else echo_red "Error!"
+		return 1
+		fi
 }
 
 function Install(){
@@ -289,6 +290,12 @@ ASSEMBLER="z80asm"
 EMULATOR="z80-mon"
 FILLCHAR='\xFF'
 TERMINAL="gnome-terminal"
+HomeDir="/home/$(whoami)/.z80-assi/" 									# local for user
+#HomeDir="/opt/z80-assi/"												# global, demands for sudo
+Chipfile="${HomeDir}devices.h"
+Chiptemp="${HomeDir}tempdevices.h"
+Chiplist="${HomeDir}devicelist"
+MaxResults=500															# Max of shown results without error prompt
 EMUL=0
 GUI=0
 HILFE=0
@@ -300,8 +307,8 @@ SIZE=0
 USESIZE=0
 YES=0
 OFFSET=0
-UNAME=$(echo ~ | cut -d/ -f3)
-INSTPATH=temp
+UNAME=$(whoami)
+INSTPATH="$HomeDir/temp/"
 VERZ=0
 
 
@@ -454,56 +461,56 @@ if [ "$LIST" == "0" ] && [ "$USESIZE" == 1 ] ; then
 		fi
 		
 #AUSWAHLDIALOG FÜR SCHALTKREIS
-if [[ $LIST -eq 1 ]]
-	then
-		echo_blue "Erstelle Liste verfügbarer Schaltkreise"
-		${MINIPRONAME} -l | sort -u > ${HOME}/MiniproDevices.txt
-		err=$?
-		if [[ $err -eq 0 ]]; then
-			echo_green " OK"
-			if [[ $VERB -eq 1 ]]; then echo "${MINIPRONAME} -l | sort -u > ${HOME}/MiniproDevices.txt"; fi
-			while true; do	#Endlossschleife bis Abbruch
-				echo
-				echo_in "Suchbegriff für Schaltkreisnamen (ohne Platzhalter, z.B. 27C512)"
-				read var
-				if [ "$var" == '' ]; then
-				if [ -z $var ] ; then var="___"; fi #Leere Eingaben vermeiden
-				fi
-				
-				var=${var// /[[:space:]]}									#Leerzeichen durch [[:space::]] ersetzen
-				grep  $var -n -i --color=always ${HOME}/MiniproDevices.txt	#Zeilen anzeigen
-				var2="$(grep  $var -c -i ${HOME}/MiniproDevices.txt)" 		#Anzahl der Treffer
-												
-				if [[ $var2 -eq 0 ]] 
-					then echo_red "Die Sucher ergab keine Treffer."
-					else 
-					if [[ $var2 -eq 1 ]]; then # Nur ein Treffer
-						var2=$(grep  $var -n -i ${HOME}/MiniproDevices.txt | cut -d":" -f1)
-						CHIP=$(head -n${var2} ${HOME}/MiniproDevices.txt|tail -n1)
-						break
-						else #Mehr als ein Treffer
-						echo_green "Die Suche ergab $var2 Treffer."
-						echo_in "Erneute Suche (Enter), Abbrechen (A) oder Schaltkreis auswählen (laufende Nummer eingeben)? "
-						read -n5 var
-							case "$var" in 
-							  A|a ) echo_red "Schaltkreissuche abgebrochen.\n";exit;;
-							  *   ) if [[ `echo "$var" | grep -E ^[[:digit:]]+$` ]] #Zahl?
-									then CHIP=$(head -n${var} ${HOME}/MiniproDevices.txt|tail -n1) #Zeile aus Liste einlesen
-										echo
-										break
-										else echo
-									fi
-							  
-							esac
-						fi
-					fi
-				done
-				#Größe herausfinden
-				GetChipSize ${CHIP}
-				fi
-
-	
-		fi #Chipliste
+if [[ $LIST -eq 1 ]]; then
+		
+while Chipfound=false; do
+					echo_in "Name des Schaltkreises oder ein Teil davon?>"
+					read Chipname
+					while [ "$Chipname" = "" ]; do
+						echo_in "Einen Teil des Schaltkreisnamens eingeben!> "
+						read Chipname
+						done
+					
+					Chipname=$(echo $Chipname | tr [a-z] [A-Z])	
+					echo "Suche \"${Chipname}\" ... "									# a -> A
+					Chipname=${Chipname// /[[:space:]]}									# Space -> grep Space
+					cat ${Chiplist} | grep "${Chipname}" --color=never > ${Chiptemp} 	# Save results
+					Chipsfound=$(grep  ${Chipname} -c ${Chiptemp}) 						# Number of results
+					
+					while true; do
+					if [[ $Chipsfound -eq 0 ]]; then
+							echo_red "Es wurde nichts gefunden. Anderen Suchbegriff nutzen."
+							break
+						else 
+							if [[ $Chipsfound -eq 1 ]]; then 							# Only one Result
+									Chipline=$(grep  ${Chipname} -n -i ${Chipfile} | cut -d":" -f1)
+									break 2
+									
+							elif [[ $Chipsfound -ge $MaxResults ]]; then 				# More than Maxresults results		
+									echo_red "$Chipsfound Schaltkreise gefunden. Einen eindeutigeren Suchbegriff verwenden."
+									break
+									
+							else 														# 2 to Maxresults results
+								cat ${Chiptemp} | grep "${Chipname}" -n -i --color=always
+								echo_green "Es wurden $Chipsfound Schaltkreise gefunden."
+								echo -n "Neue Suche (Enter), Abbrechen (A) oder Schaltkreis auswählen 1-$Chipsfound)? > "
+								read -n3 Chipline
+								case ${Chipline} in 
+								  A|a ) echo_red "Suche durch Benutzer abgerbochen.\n";exit 1;;
+								  *   ) if [[ `echo ${Chipline} | grep -E ^[[:digit:]]+$` ]]; then 
+												break 2
+												else break
+												fi 
+								esac
+								fi
+								fi
+						done
+					done
+		#Größe herausfinden
+		CHIP=$(head -n$((Chipline)) ${Chiptemp} |tail -n1)
+		Chipline=$(cat ${Chipfile} | grep \"${CHIP// /[[:space:]]}\" -n | cut -d: -f1)
+		SIZE=$(echo "ibase=16;$(head -n$(( $Chipline + 5 )) ${Chipfile} |tail -n1 | cut -d" " -f3 | cut -d"," -f1 | cut -d"x" -f2)" | bc)
+	fi #Chipliste
 
 		#####
  #Ausgabe der Größe bzw. des Chips mit Größe, hier stimmt schon alles

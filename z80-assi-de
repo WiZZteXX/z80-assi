@@ -110,8 +110,3 @@ _HS5="${_ASSEMBLES} Code.asm and creates an ROM image of 65536 (0xFFFF) Bytes.\n
 _HBYTESORKB="${_BYTES} or KB"
 _HOUTPUTFILE="Output ${_FILE}"
 _HTARGETDIR="Target Directory"
-
-
-
-
-

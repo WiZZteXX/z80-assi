@@ -1,0 +1,773 @@
+#!/bin/bash
+
+#->Those can be fitted to Your requirements
+Version="0.30"							# Program Version
+MaxResults=400							# Max amount of shown results 
+FillChar='\xFF'							# Fill Char for bin creation
+OutDir="bin"							# Standard local output directory
+AsmExtns="z80"							# Extension for created assembly files
+BinExtns="bin"							# Extension for created binary files
+MiniProSw="minipro"						# Name of the Minipro Software
+Z80Assembler="z80asm"						# Name of the Assembler
+Z80Monitor="z80-mon"						# Name of the emulator / Monitor
+Terminal="gnome-terminal"				# Name of the terminal
+HomeDir="/home/$(who -T | head -n1 | cut -d" " -f1)/.z80-assi/" 
+ChipFile="${HomeDir}devices.h"
+ChipTemp="${HomeDir}tempdevices"
+ChipList="${HomeDir}devicelist"
+IniFile="${HomeDir}devicelist"
+InstPath="${HomeDir}temp/"
+PromptSign=">"
+
+# Define colored output
+# Red
+function print_red_opts(){
+echo -e${2} "\\033[31;1m${1}\033[0m"
+}
+
+# Green
+function print_green(){
+echo -e "\\033[32;1m${@}\033[0m"
+}
+
+# Blue (without LF! for status)
+function print_blue_NoLF(){
+echo -ne "\\033[34;1m${@}\033[0m"
+}
+
+# Standard Warning 
+function print_warning_opts(){
+echo -e${2} "\\033[35;1m${_WARNING}:\t\033[0m${@}"
+}
+
+# For user inputs: Magenta
+function print_input_prompt(){
+echo -en "\\033[35;1m${@}${PromptSign} \033[0m"
+}
+
+# Minor Caption
+function print_duotext(){
+echo -ne "\\033[34;6m${1}:\t\033[0m${2}"
+}
+
+# Major Caption
+function print_duotext_fat(){
+echo -ne "\\033[34;1m${1}:\t\033[0m${2}"
+}
+
+
+# Prints green OK or Red ERROR with optional error message
+# IN: If argument is passed, this is the Error message, that is omitted on success, if 2nd argument is "quiet" then there won't be an "OK" an no points
+# OUT: mirrors the return value from the routine called before 
+function ErrOK(){
+ Result=$?
+ ErrMsg=$1
+ if [[ $2 = "quiet" ]]; then Quiet=true; else Quiet=false; fi
+ 
+ if [[ $Quiet == false ]]; then echo -n " ... "; fi
+ 
+ if [[ $Result -eq 0 ]]; then 
+		if [[ $Quiet == false ]]; then 
+			print_green ${_OK}; 
+			fi
+			return 0
+ else 
+		if [[ -n ${ErrMsg} ]]; then 
+			print_red_opts "${_ERROR}: ${ErrMsg}"
+			else print_red_opts "${_ERROR}"
+			fi
+		return $Result
+ 	fi
+}
+
+# Exits on Error
+function ErrExit(){
+if [[ $? -ne 0 ]]; then 
+	print_red_opts "${_ERREXIT}.\n"
+	exit 1
+	fi
+}
+
+# Receiving an input and change it from KBytes to bytes, if needed
+#IN:  1st Argument: Input string, formatting does not matter
+#OUT: Result in bytes in global variable OUTPUT
+function read_Byte(){
+INPUT=$1
+OUTPUT=""
+IS_KB=0
+
+#Only read INPUT, if it is somehting like 1000 (dec), 1000k, 1000K, 1000KB or 1000kb
+OUTPUT=$(echo ${INPUT} | grep -iE "^[[:digit:]]+($|K$|KB$)")
+
+#Error routine, if INPUT value is not valid
+if [ "$OUTPUT" == "" ] ; then return 1; fi
+
+#Is it KBytes?
+IS_KB=$(echo ${OUTPUT} | grep -iE "^[[:digit:]]+(K$|KB$)") # 0 no, 1 yes
+OUTPUT=${OUTPUT//k/K} # k -> K
+if ! [ "$IS_KB" == "" ]; then
+	OUTPUT=$(echo $OUTPUT | cut -dK -f1 )	# Cut off the 'KB'
+	OUTPUT=$(($OUTPUT*1024))				# multiply by 1024
+	fi
+return 0
+}
+
+# Get the Chipsize of an IC via the minipro programmer. 
+# IN:  $ChipName hast oto bet set
+# OUT: global variable $ImgSize 
+function GetChipSize () {
+ImgSize=0
+Chipline=$(cat ${ChipFile} | grep \"${ChipName// /[[:space:]]}\" -n | cut -d: -f1)
+ImgSize=$(echo "ibase=16;$(head -n$(( $Chipline + 5 )) ${ChipFile} |tail -n1 | cut -d" " -f3 | cut -d"," -f1 | cut -d"x" -f2)" | bc)
+if [[ $ImgSize -ne 0 ]]; then 
+		return 0
+	else
+	print_red_opts "\n${_ERROR}: ${_COULDNTAUTODETECT}"
+	ChipSize_man
+	fi
+}
+
+# Prompts to confirm an action
+function Confirm() {
+	print_input_prompt ${_CONFIRM}
+	read
+}
+
+# Prompts to type in a size
+function ChipSize_man () {
+	print_input_prompt ${_CHIPSIZEMAN}
+	read ImgSize
+	read_Byte $ImgSize
+			if [[ $? -eq 0 ]] ; then ImgSize=$OUTPUT
+				else print_red_opts "${_CANCELLING}\n"; exit 1
+			fi
+	return 0
+	}
+	
+function Usage(){
+	print_duotext "${_USAGE}" "\t${0##*/} [${_SRCFILE}] [${_HOPTIONS}]\n"
+	print_duotext "${_HOPTIONS}" "{-l -c[${_HCHIPNAME}] -s[${_IMG} ${_SIZE}] (-n[${_OFFSET})}  (-o[${_OUTPUT} ${_FILENAME}]) ({-a -e -p} (-O) (-h) (-y) (-v) })\n"
+}	
+
+function Help(){
+	print_duotext "2018 by Norman Wißner" "wizztexx@ich-habe-fertig.com\n"
+	Usage
+	echo "${_UWITHOUT}"
+	echo
+	print_blue_NoLF "${_HOPTIONS}\n"
+	echo -e	  "\\033[1m${_HBASIC}\\033[0m "
+	echo -e	" -l\t\t\t${_Hl}"
+	echo -e	" -c ["\"${_HCHIPNAME}"\"]\t${_Hc}"
+	echo -e	" -s [${_HBYTESORKB}]\t${_Hs}"
+	echo -e	" -n [${_HBYTESORKB}]\t${_Hn}\n"
+	echo -e	" -o [${_HOUTPUTFILE}]\t${_Ho}"
+	echo -e	" -d [${_HTARGETDIR}]\t${_Hd}\n"
+	echo -e	" -e\t\t\t${_He}"
+	echo -e	" -p\t\t\t${_Hp}"
+	echo -e	" -a\t\t\t${_Ha}"
+	echo -e	  "\\033[1m${_HEXTENDED}\\033[0m "
+	echo -e	" -I \t\t\t${_HI}"
+	echo -e	" -O\t\t\t${_HO}"
+	echo -e	" -y\t\t\t${_Hy}"
+	echo -e	" -v\t\t\t${_Hv}"
+	echo -e	" --help\t\t\t${_Hh}"
+	echo -e	" --uninstall\t\t${_Hu}\n"
+	print_blue_NoLF "${_H}SYNOPSE\n"
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm\\033[0m "
+	echo -e	  "${_HS1}"	
+	echo -e	  "\\033[1m${0##*/} -f Code.z80 -pl\\033[0m"
+	echo -e	  "${_HS2}"
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm -a -o test -l\\033[0m"
+	echo -e	  "${_HS3}"
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm -c "\"M27256 @DIP28"\" -p -y\\033[0m"
+	echo -e	  "${_HS4}"
+	echo -e	  "\\033[1m${0##*/} ~/Code.asm -n 32K -s 64K\\033[0m"
+	echo -e	  "${_HS5}\n"
+	}
+
+# Create a hidden program directory for Chip and Language files
+function CreateHomeDir(){
+	print_blue_NoLF "\n${_CREATING} ${HomeDir}"
+	mkdir -p -m=777 ${HomeDir}
+	ErrOK
+	ErrExit
+
+	print_blue_NoLF "\n${_DOWNLOADING} ${_CHIP} ${_DATABASE}"
+	wget https://raw.githubusercontent.com/vdudouyt/minipro/master/devices.h -O${ChipFile}
+	ErrOK
+	ErrExit
+		
+	print_blue_NoLF "\n${_CREATING} ${_CHIP} ${_LIST}"
+	cat ${ChipFile} | grep .name -i | cut -d"\"" -f2 > ${ChipList}
+	Chipsfound=$(cat ${ChipList} | grep ^ -c)
+	ErrOK
+	ErrExit
+
+	print_green "$Chipsfound ${_CHIPS} ${_FOUND}.\n"
+	
+	return 0
+}
+
+# Set the appropriate language file
+function CheckforLanguage(){
+	LANGFOUND=
+	ProgLanguage=$(echo $LANGUAGE | cut -d_ -f1  )
+	LanguageFile="z80-assi-$ProgLanguage"
+	LangInstDir=$(realpath ${0##*/} )
+	LangInstDir=$(echo ${LangInstDir%/*}/)
+	_WARNING="WARNING"
+	#Check HomeDir
+	if [[ -s ${HomeDir}${LanguageFile} ]]; then LANGFOUND=${HomeDir}${LanguageFile}
+	#Check Local
+	elif [[ -s ${LangInstDir}${LanguageFile} ]]; then LANGFOUND=${LangInstDir}${LanguageFile}
+	# Does not exist, so check it out online and d/l it to HomeDir
+	else 
+		mkdir -p ${HomeDir}
+		wget https://raw.githubusercontent.com/WiZZteXX/z80-assi/master/${LanguageFile} -O"${HomeDir}${LanguageFile}" -q -N
+		echo -en "\nTrying to download language file ($ProgLanguage) from git... "
+		if [[ -s "${HomeDir}${LanguageFile}" ]]; then LANGFOUND=${HomeDir}${LanguageFile}; print_green "OK"
+		else print_red_opts "Not found"
+		echo -en "But maybe You want to develop one? You can change the \\033[34;1m${HomeDir}z80-assi-langtemplate\033[0m, then save it as \\033[34;1mz80-assi-$ProgLanguage\033[0m and \n(1) commit it to git repository \\033[34;1mraw.githubusercontent.com/WiZZteXX/z80-assi/\033[0m or \n(2) send it to \\033[34;1mwizztexx@ich-habe-fertig.com\033[0m\n\n"
+		rm "${HomeDir}${LanguageFile}" #it's size is 0 Bytes, so delete it
+		fi
+	fi
+	
+		#echo "_${LangInstDir}_"
+		
+		# If not yet found
+		if [[ -z $LANGFOUND ]]; then
+			echo
+			print_warning_opts "Your language file was not found. Using English." n
+			if [[ -s "${HomeDir}z80-assi-en" ]]; then
+				source "${HomeDir}z80-assi-en"
+				echo -e "\bFile: ${HomeDir}z80-assi-en\n" ""
+				return 1
+			elif [[ -s "${LangInstDir}z80-assi-en" ]]; then
+				source "${LangInstDir}z80-assi-en"
+				echo "\bFile: ${LangInstDir}z80-assi-en\n"
+				return 1
+			else 	print_blue_NoLF "\nInstalling English language"
+					wget "https://raw.githubusercontent.com/WiZZteXX/z80-assi/master/z80-assi-en" -O"${HomeDir}z80-assi-en" -N -q
+					source "${HomeDir}z80-assi-en"
+					ErrOK
+					echo
+					return 1
+					fi
+			fi
+			
+		# If found
+			source $LANGFOUND
+			echo -e "$ProgLanguage (v${_VERSION} ${_BY} ${_DEVELOPED})\n"
+			return 0
+}
+
+function Install(){
+	IAM="$(readlink -e ${0##*/})"
+	SUCC=0
+	ERR=0
+	NOT=0
+	IMON=0
+	IASM=0
+	IMINI=0
+
+	#SUDO?
+	if [ ! `id -u` = 0 ]; then 
+	print_red_opts "${__SUDORECALLINST} (sudo ${0##*/})";
+	exit 1
+	else	
+	print_blue_NoLF "\nZ80-Assistent ${_INSTALLATION}\n"
+	Confirm
+	
+	CreateHomeDir					# Download Chip file and save it
+	mkdir -m=777 ${InstPath}
+	
+	chown -R  $(who -T | head -n1 | cut -d" " -f1) ${HomeDir}
+	chmod -R 777 ${HomeDir}
+	
+    #CHECK Routine
+    print_blue_NoLF "\n${_INSTCHECKPROG}\n"
+    
+			echo -n "Z80 Assembler (${Z80Assembler} ${_BY} Bas Wijnen) ..."
+			teste=$(${Z80Assembler} -h 2>&1 | head -n1)
+			if [ "$teste" == "Usage: ${Z80Assembler} [options] [input files]" ] ; then 
+				print_green " OK"; NOT=$(( NOT + 1 ))
+				else print_red_opts " ${_NOTFOUND}"; IASM=1; fi
+
+				
+			echo -n "Z80 Monitor (${Z80Monitor} ${_BY} Brainsoft) ..."
+			teste=$(${Z80Monitor} -h 2>&1 | head -n1 | cut -d' ' -f1-2 )
+			if [ "$teste" == "Z80 monitor" ] ; then 
+				print_green " OK"; NOT=$(( NOT + 1 ))
+				else print_red_opts  " ${_NOTFOUND}"; IMON=1; fi
+
+			echo -n "MiniPro Software (${MiniProSw} ${_BY} Valentin Dudouyt) ..."			
+			teste=$(${MiniProSw} -h 2>&1 | head -n1 | cut -d' ' -f1-2 )
+			if [ "$teste" == "minipro version" ] ; then 
+				print_green " OK"; NOT=$(( NOT + 1 ))
+				else print_red_opts " ${_NOTFOUND}"; IMINI=1; fi
+					
+	
+			
+			#INSTALLATION Routine
+			if [[ IMINI -eq 1 ]] || [[ IMON -eq 1 ]] || [[ IASM -eq 1 ]] ; then 
+			
+						cd ${InstPath}/
+						chown -R $(who -T | head -n1 | cut -d" " -f1) ${InstPath}
+						chmod -R 777 ${InstPath}
+
+						print_blue_NoLF "${_INSTINSTPROG} ${InstPath}\n"
+			
+						#${MiniProSw}
+						if [[ IMINI -eq 1 ]]; then
+							print_blue_NoLF "\n${_INSTALLING} ${MiniProSw}...\n"
+							git -C "${InstPath}" clone https://github.com/vdudouyt/minipro.git 
+							cd "${MiniProSw}/"
+							make
+							sudo make install
+							make clean
+							teste=$(${MiniProSw} -h | head -n1 | cut -d' ' -f1-2 )
+							if [ "$teste" == "minipro version" ] ; then 
+									print_green "${_INSTALLSUCC} (${MiniProSw}).\n"
+							else 
+									print_red_opts "${_ERROR}: $_{COULDNTINST} ${MiniProSw}.\n"
+									echo $teste
+									ERR=$(( ERR + 1 )) 
+							fi
+							cd ${InstPath}/
+						fi
+						
+							
+						##z80-mon
+						if [[ IMON -eq 1 ]]; then
+							print_blue_NoLF "\n${_INSTALLING} ${Z80Monitor}...\n"
+							mkdir -p "${InstPath}${Z80Monitor}"
+							cd "${InstPath}${Z80Monitor}"
+							wget "http://wwwhomes.uni-bielefeld.de/achim/z80-asm/z80-asm-current.tar.gz"
+							tar -xzf "z80-asm-current.tar.gz" -C"${InstPath}${Z80Monitor}/"
+							Var=$( ls -d */doc | cut -d/ -f1)
+							cd "${InstPath}${Z80Monitor}/${Var}"
+							make
+							cp ${Z80Monitor} /usr/local/bin/
+							make clean
+							teste=$(${Z80Monitor} -h | head -n1 | cut -d' ' -f1-2 )
+							if [ "$teste" == "Z80 monitor" ] ; then
+								print_green "${_INSTALLSUCC} (${Z80Monitor}).\n"
+							else 
+								print_red_opts "${_ERROR}: $_{COULDNTINST} ${Z80Monitor}.\n"
+								ERR=$(( ERR + 1 )) 
+							fi
+							cd ${InstPath}/
+						fi		
+							
+							
+						##z80asm
+						if [[ IASM -eq 1 ]]; then
+							print_blue_NoLF "\n${_INSTALLING} ${Z80Assembler}...\n"
+							mkdir -p "${InstPath}/${Z80Assembler}"
+							cd "${InstPath}/${Z80Assembler}"
+							wget "http://download.savannah.nongnu.org/releases/${Z80Assembler}/z80asm-1.8.tar.gz"
+							tar -xzf "z80asm-1.8.tar.gz" -C"${InstPath}/${Z80Assembler}/"
+							Var=$( ls -d */examples | cut -d/ -f1)
+							cd "${InstPath}${Z80Assembler}/${Var}"
+							make
+							cp ${Z80Assembler} /usr/local/bin/
+							make clean
+							teste=$(${Z80Assembler} -h | head -n1)
+							if [ "$teste" == "Usage: ${Z80Assembler} [options] [input files]" ] ; then 
+								print_green "${_INSTALLSUCC} (${Z80Assembler}).\n"
+							else 
+								print_red_opts "${_ERROR}: $_{COULDNTINST} ${Z80Assembler}.\n"
+								ERR=$(( ERR + 1 )) 
+							fi
+							cd "${InstPath}/"
+						fi
+						
+			
+			chown -R $(who -T | head -n1 | cut -d" " -f1) .
+			chmod -R 777 .		
+			
+
+			if [[ $? = 1 ]]; then ERR=$(( ERR + 1 )); fi
+    
+			if [[ $ERR -gt 0 ]] ; then 
+				print_red_opts  "${_ERROR}: ${_INSTALLATION} ${_FAILED}.\n"
+				exit 1
+			else 
+				print_green "\n${_INSTALLSUCC}."
+				if [[ $ERR -gt 0 ]]; then print_green "$NOT ${_PROGNINST}.\n"; fi
+			fi
+			
+		
+
+ else #Progams allready installed
+    print_green "\n${_SERVALLRINST}. ${_DONE}.\n"
+
+    fi 
+    
+print_blue_NoLF "${_COPYING} z80-assi ${_TO} /usr/local/bin/"
+mkdir -p ${InstPath}
+cp ${IAM} /usr/local/bin/z80-assi
+chmod +x "/usr/local/bin/z80-assi"
+[[ -x "/usr/local/bin/z80-assi" ]]
+ErrOK "${_FNFDONOEX}.\n"
+ErrExit
+
+print_blue_NoLF "${_CLEANINGUP}"
+rm -rf "${InstPath}/"
+ErrOK
+ErrExit
+print_green "${_DONE}\n"
+exit 0
+
+fi #SUDO
+}
+
+function Uninstall(){
+if [ ! `id -u` = 0 ]; then 
+		print_red_opts "${__SUDORECALLUNINST} (sudo ${0##*/})";
+		exit 1
+	else	
+		print_blue_NoLF "\nZ80-Assistent ${_UNINSTALL}\n"
+		Confirm
+		print_blue_NoLF "${_DELETING} ${HomeDir}"
+		rm -r ${HomeDir}
+		ErrOK
+		
+		print_blue_NoLF "${_DELETING} ${_PROGRAMS}."
+		rm /usr/local/bin/${Z80Assembler} /usr/local/bin/${Z80Monitor} /usr/local/bin/${MiniProSw}
+		ErrOK
+		
+		print_blue_NoLF "${_DELETING} $(readlink -e ${0##*/})"
+		rm /usr/local/bin/z80-assi
+		ErrOK
+		
+		print_red_opts "\nGoodbye\nSad, you didn't like me :("
+		echo "Please send bug reports to wizztexx@ich-habe-fertig.com"
+		print_green "${_DONE}\n"
+	fi
+exit 0
+}
+
+#Initialize Variables
+ONAME=0
+ChipName=0
+EMUL=0
+GUI=0
+HILFE=0
+LIST=0
+OPEN=0
+PROG=0
+VERI=0
+ImgSize=0
+USESIZE=0
+YES=0
+MemOffset=0
+Dir=0
+
+# Header
+clear
+print_red_opts  "Z80-Assistent" " -n"
+echo -n " v$Version "
+
+# Language check
+CheckforLanguage
+
+
+# Usage / Help
+ALL=$@
+if [[ $ALL = *"--help"* ]]; then Help; exit 10; fi
+
+# Uninstall
+if [[ $@ = *"--uninstall"* ]]; then Uninstall; fi
+
+#Get the source file
+#No args supplied
+test $# -ne 0
+ErrOK "${_NSRCFILE}.\n${_CANCELLING}.\n${_CALL} $0 --help, ${_SHOWHELP}.\n" quiet
+ErrExit
+
+ARG1=${1}
+ARGB=$(echo ${ARG1} | cut -c1)
+
+if ! [ "$ARGB" ==  "-" ]; then # no leading '-' -> it's the source file
+		SrcFile=$ARG1
+		shift
+	elif [ "$ARG1" == "-I" ] ; then
+		Install
+		exit 0
+	else
+		print_red_opts "${_NSRCFILE}.\n${_CANCELLING}.\n${_CALL} $0 --help, ${_SHOWHELP}.\n"
+		Usage
+		exit 1
+	fi	
+			
+#Interpret the options and arguments
+while getopts "ac:d:eln:o:Ops:vy?" OPTION; do
+	case "${OPTION}" in
+		a) PROG=1; EMUL=1; USESIZE=1;VERI=1;;
+		d) Dir=$OPTARG;;
+		c) ChipName=$OPTARG; LIST=0; USESIZE=1;;
+		e) EMUL=1;;
+		l) LIST=1;;
+		n) MemOffset=$OPTARG;; 
+		o) ONAME=$OPTARG;;
+		O) OPEN=1;;
+		p) PROG=1; USESIZE=1;;
+		s) ImgSize=$OPTARG; USESIZE=1;;
+		v) VERI=1; YES=1;;	
+		y) YES=1;;
+		*) Usage;echo -e "\n";;
+		esac
+done
+			
+#Does the source file exist?
+	print_duotext_fat "${_SRCFILE}" "${SrcFile}"
+	test -e  ${SrcFile}
+	ErrOK "${_SRCFILE} ${SrcFile} ${_NOTFOUND}.\n"
+	ErrExit
+	
+
+# Output directory
+	##Check directory
+	TempDir="$(dirname $(readlink -e $SrcFile))/${OutDir}"
+	if [ "${Dir}" == "0" ] ; then Dir="${TempDir}"; 
+	else Dir="$( realpath ${Dir} )"
+	fi
+	
+	mkdir -p -m=777 ${Dir}
+	
+# File names
+if [ "${ONAME}" == "0" ]; then OutputBaseName=$( basename ${SrcFile}  | cut -d. -f1 )
+	else OutputBaseName=$( echo ${ONAME}| cut -d. -f1 ); fi
+	
+# adress the source file globally
+	TempDir="$(dirname $(readlink -e $SrcFile))/"
+	SrcFile=$(realpath ${SrcFile})
+	
+BinFileName="${Dir}/${OutputBaseName}.${BinExtns}"			#Binary
+ListFileName="${Dir}/${OutputBaseName}-list.${AsmExtns}"	#Listing
+LabelFileName="${Dir}/${OutputBaseName}-labels.${AsmExtns}"	#Labels
+EmuFileName="${Dir}/${OutputBaseName}-emu.${BinExtns}"		#Emulatin File
+ImgFileName="${Dir}/${OutputBaseName}-rom.${BinExtns}"		#Rom Image (let mem filled with 0xFF)
+
+# Zero the size, if IC and -s specified
+if [ ! "$ChipName" == "0" ] && [ ! "$ImgSize" == "0" ] ; then print_warning_opts "${_OPTCS}. ${_CHANGES}."; ImgSize=0;  fi
+
+
+# Zero the size, if IC and -l specified
+if [ "$LIST" == "1" ] && [ ! "$ImgSize" == "0" ] ; then print_warning_opts "${_OPTCS}. ${_CHANGES}."; ImgSize=0;  fi
+
+#check options
+#Offset (-n)
+if [ ! "${MemOffset}" == "0" ]; then
+read_Byte ${MemOffset}
+	if [[ $? -eq 0 ]] ; then MemOffset=$OUTPUT
+		else
+		MemOffset=0
+		print_warning_opts "${_OFFSET} ${_NRECZERO}. ${_ZEROING}."
+		fi
+	#Offset output	
+		print_duotext "${_OFFSET}" "\t${MemOffset}\n"
+
+	fi
+
+#Size (-s)
+if [ ! "$ImgSize" == "0" ]; then
+	read_Byte $ImgSize
+	if [[ $? -eq 0 ]] ; then ImgSize=$OUTPUT
+		else
+		ImgSize=0
+		print_warning_opts "${_SIZE} ${_NRECZERO}."
+		ChipSize_man
+		fi
+	fi
+
+
+#Initialize Size, if -l not supplied
+#Only specify the size, if it's really needed
+if [ "$LIST" == "0" ] && [ "$USESIZE" == 1 ] ; then
+	# Chip without size
+	if  [ ! "${ChipName}" == "0" ] && [ "$ImgSize"  == "0" ]; then GetChipSize ${ChipName}; fi
+
+
+	#should program, but no chip specified -> start interactive selection
+	if  [ "${ChipName}" == "0" ] && [ "$PROG" == "1" ] ; then 
+		 print_warning_opts "${_NOCHIP}.\n"
+		 LIST=1
+		 fi
+	fi
+
+		
+#Interactive chip selection
+if [[ $LIST -eq 1 ]]; then
+
+	while Chipfound=false; do
+	print_input_prompt "${_CHIPNAME}"
+	read Chipname
+	while [ "$Chipname" = "" ]; do
+		print_input_prompt "${_CHIPNAME}"
+		read Chipname
+		done
+	
+	Chipname=$(echo $Chipname | tr [a-z] [A-Z])	
+	echo -n "${_SEARCHINGFOR} \"${Chipname}\" ... "							# a -> A
+	Chipname=${Chipname// /[[:space:]]}									# Space -> grep Space
+	cat ${ChipList} | grep "${Chipname}" --color=never > ${ChipTemp} 	# Save results
+	Chipsfound=$(grep ${Chipname} -c ${ChipTemp}) 						# Number of results
+	
+	while true; do
+	if [[ $Chipsfound -eq 0 ]]; then
+			print_red_opts "${_ERROR}: ${_NCHIPSFOUND}."
+			break
+		else 
+			if [[ $Chipsfound -eq 1 ]]; then 							# Only one Result
+					echo
+					Chipline=$(grep  ${Chipname} -n -i ${ChipFile} | cut -d":" -f1)
+					break 2
+					
+			elif [[ $Chipsfound -ge $MaxResults ]]; then 				# More than Maxresults results		
+					print_red_opts "${_ERROR}: $Chipsfound ${_CHIPSFOUND}. ${_MCHIPSFOUND}."
+					break
+					
+			else 														# 2 to Maxresults results
+				print_green "$Chipsfound ${_CHIPSFOUND}."
+				cat ${ChipTemp} | grep "${Chipname}" -n -i --color=always
+				print_input_prompt "${_CHIPSPROMPT} (1-$Chipsfound)"
+				read -n3 Chipline
+				echo
+				if [[ `echo ${Chipline} | grep -E ^[[:digit:]]+$` ]]; then 
+				break 2
+				else break;
+				fi 
+				
+				fi
+				fi
+		done
+	done
+				#Get the memory size
+				ChipName=$(head -n$((Chipline)) ${ChipTemp} |tail -n1)
+				GetChipSize ${ChipName}
+
+	
+	fi #Chip list
+
+
+ #Output of the chip and it's memory size. Should be OK here
+ if  [ "${ChipName}" == "0" ] ; then 
+		if ! [ "$ImgSize" == "0" ]; then print_duotext "${_IMAGESIZE}" "$ImgSize ${_BYTES}\n"; else echo -e "\n" ;fi
+		else print_duotext "${_CHIP}" "\t$ChipName ($ImgSize ${_BYTES})\n"; 
+		fi		
+		
+# Assemble
+print_blue_NoLF "\n${_ASSEMBLING} \t${SrcFile}"
+
+${Z80Assembler} ${SrcFile} -o${BinFileName} -l${ListFileName} -L${LabelFileName} -I${TempDir}  #>> ${Dir}/${basename}.log
+ErrOK "${_COULDNTASS}"
+ErrExit
+
+		 
+# Memory OK?
+if [ $USESIZE -eq 1 ]
+ then
+ BinFileSize="$(ls -l ${BinFileName} | cut -f5 -d" ")"
+ Var="$( echo "scale=10 ;100/$ImgSize*$BinFileSize*1000" | bc -l | head -c7) "
+ FullSize="$( echo "scale=2; $Var/1000" | bc -l )"
+ print_duotext "${_MEMUSED}" "$BinFileSize/$ImgSize ${_BYTES} ($FullSize %)"
+ test  $ImgSize -gt $BinFileSize 
+ ErrOK "${_MEMFULL}"
+ ErrExit
+fi
+	
+print_duotext_fat "${_ASSFILE}" "${BinFileName}"
+test -e ${BinFileName}
+ErrOK "${_FILE} ${_NOTFOUND}."
+print_duotext_fat "${_LISTFILE}" "${ListFileName}\n"
+test -e ${ListFileName}
+ErrOK "${_FILE} ${_NOTFOUND}."
+print_duotext_fat "${_LABELFILE}" "${LabelFileName}\n"	
+test -e ${LabelFileName}
+ErrOK "${_FILE} ${_NOTFOUND}."
+
+# Create ROM Image
+if [[ $USESIZE -eq 1 ]] ; then
+print_blue_NoLF "\n${_CREATING} ${_IMGFILE} ($ImgSize ${_BYTES})\n"
+
+# Check if MemOffset + ImgSize fit
+print_duotext "${_SIZE}" "\t($(($BinFileSize + ${MemOffset} ))/$ImgSize ${_BYTES})"
+test $ImgSize -gt $(( ${BinFileSize} + ${MemOffset} ))   
+ErrOK "${_MEMFULL}"
+if [[ $? -ne 0 ]]; then
+			PROG=0
+		else	
+			#Create the files and initialize the variables
+			echo -n > ${ImgFileName}
+			GlobalCounter=0
+			Counter=0
+
+			#Write the offset		
+			if [[ MemOffset -ne 0  ]]; then 
+			print_duotext "${_OFFSET}" "\t${MemOffset} ${_BYTES}\n"
+				while [[ $Counter -ne  ${MemOffset} ]] ; do
+				Counter=$(( $Counter + 1 ))
+				echo -ne $FillChar >> ${ImgFileName}
+				done
+				GlobalCounter=$Counter
+			fi
+			
+			#Write binary data
+			print_duotext "${_CODE}"  "\t$BinFileSize ${_BYTES}\n"
+			cat ${BinFileName} >> ${ImgFileName}
+			GlobalCounter=$(( $GlobalCounter+$BinFileSize ))
+			
+			#Fill with fill chars until size reached
+			print_duotext "${_FILLCHAR}" "\t$(($ImgSize - ${MemOffset} - $BinFileSize)) ${_BYTES}\n"
+			Counter=$GlobalCounter
+			Var=""
+			while [[ $Counter -ne  $ImgSize ]] ; do
+			Counter=$(( $Counter + 1 ))
+			echo -ne $FillChar >> ${ImgFileName}
+			done
+
+			GlobalCounter=$Counter
+			print_duotext_fat "${_IMGFILE}" "${ImgFileName}"
+			test -e ${ImgFileName}
+			ErrOK "${_FILE} ${_NOTFOUND}."
+			ErrExit
+			fi
+
+
+# Programming
+if [[ $PROG -eq 1 ]] ; then 
+			
+	print_blue_NoLF "\n${_PROGRAMMING} ${_CHIP} ${ChipName}\n"
+	Var="-w ${ImgFileName}"
+	#ID-Check Mode
+	if [[ $YES -eq 1 ]]; then Var="${Var} -y"; fi
+	#Verify Mode
+	if [[ $VERI -eq 0 ]]; then Var="${Var} -v"; fi
+	Confirm				
+	${MiniProSw} -p"${ChipName}" ${Var} 
+	ErrOK " ${_PROGRAMMING} ${_FAILED}" quiet	
+fi
+fi
+			
+# Emulate
+if [[ $EMUL -eq 1 ]] ; then
+	print_blue_NoLF "\n${_CREATING} ${_EMUFILE}"
+	echo -n -e "Z80ASM\x1A\x0A\x0\x0" > ${EmuFileName}
+	cat ${BinFileName} >> ${EmuFileName}
+	print_green " OK"
+	print_duotext_fat "${_EMUFILE}" "${EmuFileName}\n"
+	print_blue_NoLF "\n${_EMULATING}\n"
+	Confirm
+	${Terminal} -e "${Z80Monitor} ${EmuFileName}"
+	fi
+
+# Open working directory
+if [[ $OPEN -eq 1 ]] ; then	nautilus bin &>> ${Dir}/${basename}.log &
+	fi
+
+# Done
+print_green "${_DONE}.\n"
+exit 0
+
